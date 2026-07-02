@@ -1,0 +1,7 @@
+node_modules/
+.git/
+coverage/
+__tests__/
+db/data.json
+.env
+.env.local

@@ -1,0 +1,10 @@
+{
+  "name": "CleanCave",
+  "short_name": "CleanCave",
+  "description": "Reparto y rotación justa de tareas del hogar en pareja",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#c1652f",
+  "icons": []
+}

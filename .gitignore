@@ -1,0 +1,8 @@
+node_modules/
+db/data.json
+.env
+.env.local
+.DS_Store
+npm-debug.log*
+coverage/
+__tests__/test-data.json

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CleanCave</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c1652f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="view-login" class="view centered">
+    <div class="card login-card">
+      <h1>🧹 CleanCave</h1>
+      <p class="subtitle">Repartan las tareas de la casa sin peleas.</p>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="login">Ingresar</button>
+        <button class="tab-btn" data-tab="register">Crear hogar nuevo</button>
+      </div>
+
+      <form id="form-login" class="tab-panel active" data-panel="login">
+        <label>Usuario
+          <input type="text" id="login-username" required placeholder="delfina" autocomplete="username">
+        </label>
+        <label>Contraseña
+          <input type="password" id="login-password" required autocomplete="current-password">
+        </label>
+        <button type="submit" class="btn primary">Ingresar</button>
+        <button type="button" id="btn-forgot" class="link-btn">¿Olvidaste tu contraseña?</button>
+        <p class="error" id="login-error"></p>
+      </form>
+
+      <form id="form-forgot" class="tab-panel" data-panel="forgot" hidden>
+        <p class="muted">Te vamos a mandar un link al email de recuperación que tengas cargado en tu perfil.</p>
+        <label>Usuario
+          <input type="text" id="forgot-username" required placeholder="delfina">
+        </label>
+        <button type="submit" class="btn primary">Enviar link de recuperación</button>
+        <button type="button" id="btn-forgot-cancel" class="link-btn">Volver a ingresar</button>
+        <p class="error" id="forgot-error"></p>
+        <p class="success" id="forgot-success"></p>
+      </form>
+
+      <form id="form-register" class="tab-panel" data-panel="register">
+        <label>Nombre del hogar
+          <input type="text" id="reg-household" required placeholder="Ej: Cueva">
+        </label>
+        <h3>Integrante 1</h3>
+        <label>Nombre <input type="text" id="reg-name1" required></label>
+        <label>Usuario <input type="text" id="reg-user1" required placeholder="sin espacios"></label>
+        <label>Contraseña <input type="password" id="reg-pass1" required></label>
+        <h3>Integrante 2</h3>
+        <label>Nombre <input type="text" id="reg-name2" required></label>
+        <label>Usuario <input type="text" id="reg-user2" required placeholder="sin espacios"></label>
+        <label>Contraseña <input type="password" id="reg-pass2" required></label>
+        <button type="submit" class="btn primary">Crear hogar</button>
+        <p class="error" id="register-error"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================== APP ===================== -->
+  <div id="view-app" class="view" hidden>
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="logo">🧹</span>
+        <span id="household-name" class="household-name"></span>
+      </div>
+      <nav class="topbar-nav">
+        <button class="nav-btn active" data-page="dashboard">Semana en curso</button>
+        <button class="nav-btn" data-page="tasks">Configurar tareas</button>
+        <button class="nav-btn" data-page="history">Histórico</button>
+        <button class="nav-btn" data-page="stats">Estadísticas</button>
+      </nav>
+      <div class="topbar-right">
+        <button id="btn-notifications" class="icon-btn" title="Notificaciones">🔔<span id="notif-dot" class="dot" hidden></span></button>
+        <button id="btn-profile" class="profile-btn" title="Mi perfil">
+          <span id="profile-avatar" class="avatar small"></span>
+          <span id="current-user-name" class="current-user"></span>
+        </button>
+        <button id="btn-logout" class="btn ghost small">Salir</button>
+      </div>
+    </header>
+
+    <div id="notifications-panel" class="notifications-panel" hidden></div>
+
+    <!-- -------- DASHBOARD -------- -->
+    <main id="page-dashboard" class="page active">
+      <div class="dashboard-header">
+        <div>
+          <h2>Semana del <span id="week-label"></span></h2>
+          <p class="muted">La lista se genera sola cada domingo. Tocá una tarea tuya para marcarla como hecha, o pedí un intercambio con el ícono 🔁.</p>
+        </div>
+      </div>
+
+      <div id="columns" class="columns"></div>
+    </main>
+
+    <!-- -------- TASKS ADMIN -------- -->
+    <main id="page-tasks" class="page">
+      <div class="dashboard-header">
+        <div>
+          <h2>Configurar tareas</h2>
+          <p class="muted">Agregá, editá, desactivá o eliminá tareas. Desactivar conserva el historial; eliminar la borra del todo (lo ya completado sigue en el histórico).</p>
+        </div>
+      </div>
+
+      <form id="form-new-task" class="new-task-form card">
+        <input type="text" id="new-task-name" placeholder="Nombre de la tarea" required>
+        <select id="new-task-freq"></select>
+        <input type="number" id="new-task-custom-days" placeholder="días" min="1" hidden style="width:80px">
+        <textarea id="new-task-description" placeholder="Descripción / subtareas (opcional)" rows="1"></textarea>
+        <button type="submit" class="btn primary">+ Agregar</button>
+      </form>
+
+      <table class="tasks-table" id="tasks-table">
+        <thead>
+          <tr><th>Tarea</th><th>Frecuencia</th><th>Estado</th><th></th></tr>
+        </thead>
+        <tbody id="tasks-tbody"></tbody>
+      </table>
+    </main>
+
+    <!-- -------- HISTORY -------- -->
+    <main id="page-history" class="page">
+      <div class="dashboard-header">
+        <div>
+          <h2>Histórico</h2>
+          <p class="muted">Elegí una semana para ver qué le tocó a cada uno, qué se completó (y cuándo) y los intercambios de esa semana.</p>
+        </div>
+        <select id="history-week-select"></select>
+      </div>
+      <div id="history-content"></div>
+    </main>
+
+    <!-- -------- STATS -------- -->
+    <main id="page-stats" class="page">
+      <div class="dashboard-header">
+        <div>
+          <h2>Estadísticas</h2>
+          <p class="muted">Calculadas sobre las semanas ya cerradas (la semana en curso todavía puede completarse).</p>
+        </div>
+      </div>
+      <div id="stats-content"></div>
+    </main>
+
+    <!-- -------- PROFILE (página, no modal) -------- -->
+    <main id="page-profile" class="page">
+      <button id="profile-back" class="btn ghost small back-btn">← Volver</button>
+      <div class="dashboard-header">
+        <div>
+          <h2>Mi perfil</h2>
+        </div>
+      </div>
+
+      <div class="profile-page-grid">
+        <div class="card profile-section-card">
+          <h4>Foto de perfil</h4>
+          <div class="profile-avatar-row">
+            <span id="profile-page-avatar" class="avatar large"></span>
+            <input type="file" id="avatar-file-input" accept="image/*">
+          </div>
+          <p class="error" id="avatar-error"></p>
+        </div>
+
+        <div class="card profile-section-card">
+          <h4>Cambiar contraseña</h4>
+          <label>Contraseña actual <input type="password" id="pwd-current"></label>
+          <label>Contraseña nueva <input type="password" id="pwd-new"></label>
+          <button id="pwd-save" class="btn ghost small">Actualizar contraseña</button>
+          <p class="error" id="pwd-error"></p>
+          <p class="success" id="pwd-success"></p>
+        </div>
+
+        <div class="card profile-section-card">
+          <h4>Email de recuperación</h4>
+          <p class="muted">Se usa para poder recuperar tu contraseña si la olvidás.</p>
+          <label>Email <input type="email" id="recovery-email" placeholder="tu-email@ejemplo.com"></label>
+          <button id="email-save" class="btn ghost small">Guardar email</button>
+          <p class="success" id="email-success"></p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+</div>
+
+<!-- ===================== MODAL: intercambiar tarea ===================== -->
+<div id="swap-modal" class="modal-overlay" hidden>
+  <div class="modal card">
+    <h3>Intercambiar tarea</h3>
+    <label>Tu tarea a ofrecer
+      <select id="swap-from-select"></select>
+    </label>
+    <label>Tarea de <span id="swap-partner-name"></span> que querés a cambio
+      <select id="swap-target-select"></select>
+    </label>
+    <label>Mensaje (opcional)
+      <textarea id="swap-message" rows="2" placeholder="Ej: Dale que esta semana ando corto de tiempo"></textarea>
+    </label>
+    <div class="modal-actions">
+      <button id="swap-cancel" class="btn ghost small">Cancelar</button>
+      <button id="swap-submit" class="btn primary small">Enviar solicitud</button>
+    </div>
+    <p class="error" id="swap-error"></p>
+  </div>
+</div>
+
+<!-- ===================== MODAL: confirmar completar tarea ===================== -->
+<div id="confirm-modal" class="modal-overlay" hidden>
+  <div class="modal card small-modal">
+    <h3>Marcar como realizada</h3>
+    <p id="confirm-modal-text" class="muted"></p>
+    <p class="hint">Una vez marcada, no se puede desmarcar.</p>
+    <div class="modal-actions">
+      <button id="confirm-no" class="btn ghost small">No</button>
+      <button id="confirm-yes" class="btn primary small">Sí</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: celebración 100% ===================== -->
+<div id="celebration-modal" class="modal-overlay" hidden>
+  <div class="modal card celebration-modal">
+    <div class="celebration-emoji">🎉🏆🎉</div>
+    <h2>¡Felicitaciones!</h2>
+    <p>Cubriste todas tus responsabilidades de la semana. Por el resto de la semana, nadie te puede decir nada. 💪</p>
+    <div class="modal-actions center">
+      <button id="celebration-close" class="btn primary small">¡Gracias!</button>
+    </div>
+  </div>
+</div>
+<div id="confetti-layer"></div>
+
+<!-- ===================== MODAL: editar tarea ===================== -->
+<div id="edit-task-modal" class="modal-overlay" hidden>
+  <div class="modal card">
+    <h3>Editar tarea</h3>
+    <label>Nombre
+      <input type="text" id="edit-task-name">
+    </label>
+    <label>Frecuencia
+      <select id="edit-task-freq"></select>
+    </label>
+    <input type="number" id="edit-task-custom-days" placeholder="días" min="1" hidden>
+    <label>Descripción / subtareas
+      <textarea id="edit-task-description" rows="3"></textarea>
+    </label>
+    <div class="profile-section">
+      <h4>Registrar cuándo se hizo por última vez</h4>
+      <p class="muted">Para arrancar la rotación bien, en base a cómo venían repartiéndose esta tarea antes de usar la app.</p>
+      <label>Fecha <input type="date" id="edit-task-last-date"></label>
+      <label>La hizo <select id="edit-task-last-user"></select></label>
+      <button id="edit-task-save-history" class="btn ghost small">Guardar registro histórico</button>
+      <p class="error" id="edit-task-history-error"></p>
+      <p class="success" id="edit-task-history-success"></p>
+    </div>
+    <div class="modal-actions">
+      <button id="edit-task-cancel" class="btn ghost small">Cancelar</button>
+      <button id="edit-task-save" class="btn primary small">Guardar</button>
+    </div>
+    <p class="error" id="edit-task-error"></p>
+  </div>
+</div>
+
+<!-- ===================== MODAL: eliminar tarea ===================== -->
+<div id="delete-task-modal" class="modal-overlay" hidden>
+  <div class="modal card small-modal">
+    <h3>Eliminar tarea</h3>
+    <p class="muted" id="delete-task-text"></p>
+    <div class="modal-actions">
+      <button id="delete-task-cancel" class="btn ghost small">Cancelar</button>
+      <button id="delete-task-confirm" class="btn danger small">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js');
+  });
+}
+</script>
+</body>
+</html>
