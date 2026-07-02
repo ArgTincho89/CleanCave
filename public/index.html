@@ -76,12 +76,6 @@
         <span class="logo">🧹</span>
         <span id="household-name" class="household-name"></span>
       </div>
-      <nav class="topbar-nav">
-        <button class="nav-btn active" data-page="dashboard">Semana en curso</button>
-        <button class="nav-btn" data-page="tasks">Configurar tareas</button>
-        <button class="nav-btn" data-page="history">Histórico</button>
-        <button class="nav-btn" data-page="stats">Estadísticas</button>
-      </nav>
       <div class="topbar-right">
         <button id="btn-notifications" class="icon-btn" title="Notificaciones">🔔<span id="notif-dot" class="dot" hidden></span></button>
         <button id="btn-profile" class="profile-btn" title="Mi perfil">
@@ -92,31 +86,15 @@
       </div>
     </header>
 
-    <div id="notifications-panel" class="notifications-panel" hidden></div>
-
-    <!-- -------- BOTTOM NAV (mobile) -------- -->
-    <nav class="bottom-nav" id="bottom-nav">
-      <button class="nav-btn active" data-page="dashboard">
-        <span class="nav-icon">📋</span>
-        <span class="nav-label">Semana</span>
-      </button>
-      <button class="nav-btn" data-page="tasks">
-        <span class="nav-icon">⚙️</span>
-        <span class="nav-label">Tareas</span>
-      </button>
-      <button class="nav-btn" data-page="history">
-        <span class="nav-icon">📜</span>
-        <span class="nav-label">Histórico</span>
-      </button>
-      <button class="nav-btn" data-page="stats">
-        <span class="nav-icon">📊</span>
-        <span class="nav-label">Stats</span>
-      </button>
-      <button class="nav-btn" data-page="profile">
-        <span class="nav-icon">👤</span>
-        <span class="nav-label">Perfil</span>
-      </button>
+    <nav class="topbar-nav">
+      <button class="nav-btn active" data-page="dashboard">Semana en curso</button>
+      <button class="nav-btn" data-page="tasks">Configurar tareas</button>
+      <button class="nav-btn" data-page="history">Histórico</button>
+      <button class="nav-btn" data-page="stats">Estadísticas</button>
+      <button class="nav-btn" data-page="profile">Perfil</button>
     </nav>
+
+    <div id="notifications-panel" class="notifications-panel" hidden></div>
 
     <!-- -------- DASHBOARD -------- -->
     <main id="page-dashboard" class="page active">
@@ -193,6 +171,7 @@
           <div class="profile-avatar-row">
             <span id="profile-page-avatar" class="avatar large"></span>
             <input type="file" id="avatar-file-input" accept="image/*">
+            <span id="avatar-upload-status" class="upload-status" hidden></span>
           </div>
           <p class="error" id="avatar-error"></p>
         </div>

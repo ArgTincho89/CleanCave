@@ -661,15 +661,24 @@ document.getElementById('avatar-file-input').addEventListener('change', async e 
   if (!file) return;
   const errEl = document.getElementById('avatar-error');
   errEl.textContent = '';
+  const statusEl = document.getElementById('avatar-upload-status');
+  statusEl.hidden = false;
+  statusEl.textContent = 'Subiendo...';
   try {
+    const avatarPreview = document.getElementById('profile-page-avatar');
+    const reader = new FileReader();
+    reader.onload = () => { avatarPreview.innerHTML = `<img src="${reader.result}" alt="preview">`; };
+    reader.readAsDataURL(file);
     const dataUrl = await resizeImageToDataUrl(file, 200);
     const { user } = await api('/me/avatar', { method: 'PUT', body: JSON.stringify({ avatarDataUrl: dataUrl }) });
     state.me.user = user;
     setAvatarEl('profile-page-avatar', user, 'large');
     setAvatarEl('profile-avatar', user, 'small');
+    statusEl.hidden = true;
     await loadDashboard();
   } catch (err) {
     errEl.textContent = err.message;
+    statusEl.hidden = true;
   }
 });
 

@@ -1,0 +1,28 @@
+# Changelog
+
+## v1.2.0
+
+- **Topbar refactor**: navegación separada del topbar como barra sticky independiente con scroll horizontal en mobile.
+- **Avatar upload feedback**: muestra preview inmediato de la foto seleccionada y texto "Subiendo..." mientras se procesa.
+- **README actualizado**: corrige descripción del layout a topbar + pestañas scrollables.
+- **CHANGELOG iniciado**.
+
+## v1.1.0
+
+- **PWA**: service worker con app shell precacheado + cache-first/network-first.
+- **OneSignal push notifications**: SDK integrado en frontend y backend.
+- **Despliegue en Fly.io**: volumen persistente, secrets, Dockerfile, seed automático.
+- **Mobile-first redesign**: CSS responsive con topbar + pestañas scrollables, touch targets 44px.
+- Perfil como página (no modal). Avatar upload. Recuperación de contraseña por email.
+
+## v1.0.0
+
+- App base Express + vanilla JS frontend.
+- Rotación semanal automática de tareas del hogar.
+- Traslado de pendientes ("Atrasada").
+- Intercambio de tareas entre integrantes.
+- Histórico por semana.
+- Estadísticas con gráficos de torta SVG.
+- Login / registro de hogar con dos integrantes.
+- Sesiones con express-session.
+- Tests: 88 tests, >90% statement coverage.
