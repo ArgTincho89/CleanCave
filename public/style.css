@@ -338,4 +338,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   .new-task-form { flex-direction: column; }
   .new-task-form input[type="text"], .new-task-form textarea { min-width: 100%; }
   #history-week-select { min-width: 100%; }
+  .history-columns { grid-template-columns: 1fr; }
+  .history-person-card { font-size: 13px; }
+  .history-person-card h3 { font-size: 15px; }
+  .history-task-row { flex-direction: column; gap: 2px; padding: 10px 0; }
+  .history-task-row .ht-when { font-size: 11px; }
+  .swap-history-item { font-size: 13px; padding: 10px 12px; }
+  .swap-history-item .sh-top { flex-direction: column; align-items: flex-start; }
 }
