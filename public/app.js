@@ -113,6 +113,11 @@ document.getElementById('btn-logout').addEventListener('click', async () => {
   location.reload();
 });
 
+document.getElementById('btn-logout-mobile').addEventListener('click', async () => {
+  await api('/auth/logout', { method: 'POST' });
+  location.reload();
+});
+
 // ---------------- Nav / páginas ----------------
 
 function showPage(pageId, navBtnPage) {
@@ -127,6 +132,16 @@ function showPage(pageId, navBtnPage) {
   if (pageId === 'tasks') loadTasks();
   if (pageId === 'history') loadHistoryWeeks();
   if (pageId === 'stats') loadStats();
+  if (pageId === 'profile' && state.me) {
+    setAvatarEl('profile-page-avatar', state.me.user, 'large');
+    document.getElementById('recovery-email').value = state.me.user.recoveryEmail || '';
+    document.getElementById('pwd-current').value = '';
+    document.getElementById('pwd-new').value = '';
+    document.getElementById('pwd-error').textContent = '';
+    document.getElementById('pwd-success').textContent = '';
+    document.getElementById('email-success').textContent = '';
+    document.getElementById('avatar-error').textContent = '';
+  }
 }
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -637,14 +652,6 @@ document.getElementById('delete-task-confirm').addEventListener('click', async (
 // ---------------- Perfil (página) ----------------
 
 document.getElementById('btn-profile').addEventListener('click', () => {
-  setAvatarEl('profile-page-avatar', state.me.user, 'large');
-  document.getElementById('recovery-email').value = state.me.user.recoveryEmail || '';
-  document.getElementById('pwd-current').value = '';
-  document.getElementById('pwd-new').value = '';
-  document.getElementById('pwd-error').textContent = '';
-  document.getElementById('pwd-success').textContent = '';
-  document.getElementById('email-success').textContent = '';
-  document.getElementById('avatar-error').textContent = '';
   showPage('profile', null);
 });
 document.getElementById('profile-back').addEventListener('click', () => showPage(state.lastActiveNav, state.lastActiveNav));
