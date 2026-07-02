@@ -656,8 +656,8 @@ if (process.env.NODE_ENV === 'test') {
 }
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`CleanCave corriendo en http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`CleanCave corriendo en http://0.0.0.0:${PORT}`);
   });
 }
 
