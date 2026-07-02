@@ -135,6 +135,19 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 
 // ---------------- Boot ----------------
 
+async function registerOneSignal(userId) {
+  if (typeof window.OneSignalDeferred === 'undefined') return;
+  window.OneSignalDeferred.push(async function(OneSignal) {
+    try {
+      OneSignal.User.setExternalId(userId);
+      const subId = await OneSignal.User.PushSubscription.id;
+      if (subId) {
+        await api('/push/register', { method: 'POST', body: JSON.stringify({ oneSignalUserId: subId }) });
+      }
+    } catch {}
+  });
+}
+
 async function boot() {
   try {
     const me = await api('/me');
@@ -146,6 +159,7 @@ async function boot() {
     setAvatarEl('profile-avatar', me.user, 'small');
     await loadNotifications();
     await loadDashboard();
+    registerOneSignal(me.user.id);
   } catch (err) {
     document.getElementById('view-login').hidden = false;
     document.getElementById('view-app').hidden = true;

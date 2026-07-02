@@ -6,7 +6,8 @@
 const fs = require('fs');
 const path = require('path');
 
-let DB_FILE = path.join(__dirname, 'data.json');
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+let DB_FILE = path.join(DATA_DIR, 'data.json');
 
 function setDbFile(filePath) {
   DB_FILE = filePath;

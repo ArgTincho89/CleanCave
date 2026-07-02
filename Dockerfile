@@ -3,5 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY . .
+RUN mkdir -p /data && chmod 755 /data
+ENV DATA_DIR=/data
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["sh", "scripts/start.sh"]

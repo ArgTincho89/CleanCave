@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 3000;
 // Los avatares viajan como base64 dentro del JSON, así que subimos el límite normal de express.json
 app.use(express.json({ limit: '2mb' }));
 app.use(session({
-  secret: 'household-tasks-dev-secret', // cambiar por una variable de entorno si se despliega
+  secret: process.env.SESSION_SECRET || 'household-tasks-dev-secret',
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 1000 * 60 * 60 * 24 * 30 } // 30 días
