@@ -1,4 +1,4 @@
-const CACHE = 'cleancache-v2';
+const CACHE = 'cleancache-v3';
 const APP_SHELL = [
   '/',
   '/index.html',
