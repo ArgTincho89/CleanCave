@@ -287,7 +287,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 #history-week-select { min-width: 220px; }
 .history-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
 .history-person-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-.history-task-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.history-task-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
 .history-task-row:last-child { border-bottom: none; }
 .history-task-row .ht-when { color: var(--muted); font-size: 12px; }
 
