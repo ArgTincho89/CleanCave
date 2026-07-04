@@ -90,6 +90,10 @@ function notifyPartnerIfDone(data, householdId, userId, weekStart) {
 // Así el listado aparece solo, sin depender de que alguien apriete un botón.
 function ensureCurrentWeekGenerated(data, householdId) {
   const weekStart = currentWeekStart();
+  // Si es sábado (la semana termina mañana), no generamos porque el cron
+  // del domingo va a repartir tareas nuevas. Evita que se regeneren
+  // asignaciones manualmente limpiadas para arrancar fresh al otro día.
+  if (new Date().getDay() === 6) return weekStart;
   generateWeek(data, householdId, weekStart); // idempotente: no duplica ni si ya existían algunas
   return weekStart;
 }

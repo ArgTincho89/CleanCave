@@ -226,6 +226,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .tasks-table tr:last-child td { border-bottom: none; }
 .tasks-table .task-desc-preview { font-size: 12px; color: var(--muted); margin-top: 2px; max-width: 280px; }
 .tasks-table .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.tasks-table .row-actions .btn { min-width: 92px; text-align: center; }
 .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; background: #f4e9dd; color: var(--primary-dark); }
 .badge.inactive { background: #f0eeea; color: var(--muted); }
 .badge.status-pending { background: #f4e9dd; color: var(--primary-dark); }
@@ -341,7 +342,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   .history-columns { grid-template-columns: 1fr; }
   .history-person-card { font-size: 13px; }
   .history-person-card h3 { font-size: 15px; }
-  .history-task-row { flex-direction: column; gap: 2px; padding: 10px 0; }
+  .history-task-row { flex-wrap: wrap; gap: 4px 10px; padding: 10px 0; }
   .history-task-row .ht-when { font-size: 11px; }
   .swap-history-item { font-size: 13px; padding: 10px 12px; }
   .swap-history-item .sh-top { flex-direction: column; align-items: flex-start; }
