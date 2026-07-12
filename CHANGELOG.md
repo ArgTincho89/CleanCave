@@ -3,7 +3,7 @@
 ## v1.4.1
 
 - **Tareas globales**: eliminado checkbox innecesario de cada tarjeta.
-- **Editar tarea global**: ahora permite editar título y descripción en un solo prompt (nombre | descripción).
+- **Editar tarea global**: ahora con modal propio (nombre + descripción) igual que las tareas de Configurar tareas.
 
 ## v1.4.0
 

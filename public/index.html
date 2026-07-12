@@ -340,6 +340,24 @@
   </div>
 </div>
 
+<!-- ===================== MODAL: editar tarea global ===================== -->
+<div id="edit-global-task-modal" class="modal-overlay" hidden>
+  <div class="modal card">
+    <h3>Editar tarea global</h3>
+    <label>Nombre
+      <input type="text" id="edit-global-task-name">
+    </label>
+    <label>Descripción
+      <textarea id="edit-global-task-desc" rows="3"></textarea>
+    </label>
+    <div class="modal-actions">
+      <button id="edit-global-task-cancel" class="btn ghost small">Cancelar</button>
+      <button id="edit-global-task-save" class="btn primary small">Guardar</button>
+    </div>
+    <p class="error" id="edit-global-task-error"></p>
+  </div>
+</div>
+
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
 window.OneSignalDeferred = window.OneSignalDeferred || [];

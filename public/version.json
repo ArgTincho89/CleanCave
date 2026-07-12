@@ -1,6 +1,15 @@
 {
-  "current": "v1.4.0",
+  "current": "v1.4.1",
   "versions": [
+    {
+      "version": "v1.4.1",
+      "date": "2026-07-12",
+      "features": [],
+      "fixes": [
+        "Tareas globales: eliminado checkbox innecesario de cada tarjeta",
+        "Editar tarea global: ahora con modal propio (nombre + descripción) como las tareas de Configurar tareas"
+      ]
+    },
     {
       "version": "v1.4.0",
       "date": "2026-07-12",
@@ -10,9 +19,7 @@
         "Modal de avatar con botón X para cerrar"
       ],
       "fixes": [
-        "Botón 'Borrar caché' en pantalla de login para limpiar service worker sin reinstalar la PWA",
-        "Tareas globales: eliminado checkbox innecesario de cada tarjeta",
-        "Editar tarea global ahora permite editar título y descripción en un solo prompt"
+        "Botón 'Borrar caché' en pantalla de login para limpiar service worker sin reinstalar la PWA"
       ]
     },
     {

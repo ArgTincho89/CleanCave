@@ -1009,21 +1009,7 @@ async function loadGlobalTasks() {
     });
   });
   container.querySelectorAll('.edit-gt').forEach(b => {
-    b.addEventListener('click', async () => {
-      const task = state.globalTasks.find(t => t.id === b.dataset.id);
-      if (!task) return;
-      const input = prompt('Editá la tarea: nombre | descripción', task.name + ' | ' + (task.description || ''));
-      if (!input) return;
-      const parts = input.split('|').map(s => s.trim());
-      const name = parts[0];
-      if (!name) return;
-      const description = parts.slice(1).join(' | ') || '';
-      await api('/global-tasks/' + b.dataset.id, {
-        method: 'PUT',
-        body: JSON.stringify({ name, description })
-      });
-      await loadGlobalTasks();
-    });
+    b.addEventListener('click', () => openEditGlobalTaskModal(b.dataset.id));
   });
   container.querySelectorAll('.delete-gt').forEach(b => {
     b.addEventListener('click', async () => {
@@ -1060,5 +1046,39 @@ async function loadGlobalTasksHistory() {
     }).join('') + '</ul>';
   } catch {}
 }
+
+// ---------------- Editar tarea global (modal) ----------------
+
+const editGlobalTaskModal = document.getElementById('edit-global-task-modal');
+let editingGlobalTaskId = null;
+
+document.getElementById('edit-global-task-cancel').addEventListener('click', () => { editGlobalTaskModal.hidden = true; });
+
+function openEditGlobalTaskModal(taskId) {
+  const task = state.globalTasks.find(t => t.id === taskId);
+  if (!task) return;
+  editingGlobalTaskId = taskId;
+  document.getElementById('edit-global-task-name').value = task.name;
+  document.getElementById('edit-global-task-desc').value = task.description || '';
+  document.getElementById('edit-global-task-error').textContent = '';
+  editGlobalTaskModal.hidden = false;
+}
+
+document.getElementById('edit-global-task-save').addEventListener('click', async () => {
+  const errEl = document.getElementById('edit-global-task-error');
+  errEl.textContent = '';
+  const name = document.getElementById('edit-global-task-name').value.trim();
+  if (!name) { errEl.textContent = 'El nombre no puede estar vacío.'; return; }
+  try {
+    await api('/global-tasks/' + editingGlobalTaskId, {
+      method: 'PUT',
+      body: JSON.stringify({ name, description: document.getElementById('edit-global-task-desc').value.trim() })
+    });
+    editGlobalTaskModal.hidden = true;
+    await loadGlobalTasks();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+});
 
 boot();
