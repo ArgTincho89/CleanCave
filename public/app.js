@@ -983,6 +983,8 @@ async function loadStats() {
 async function loadGlobalTasks() {
   const { tasks } = await api('/global-tasks');
   state.globalTasks = tasks;
+  const counter = document.getElementById('global-tasks-count');
+  if (counter) counter.textContent = 'Cantidad de tareas globales = ' + tasks.filter(t => t.status !== 'done').length;
   const container = document.getElementById('global-tasks-list');
   if (!container) return;
   container.innerHTML = tasks.map(t => `
@@ -1038,9 +1040,15 @@ async function loadGlobalTasksHistory() {
       return;
     }
     container.innerHTML = '<ul style="margin:0;padding-left:18px;">' + history.map(h => {
-      const label = { created: 'Creada', completed: 'Completada', reopened: 'Reabierta', deleted: 'Eliminada' }[h.action] || h.action;
-      return `<li style="margin-bottom:6px;line-height:1.4;"><strong>${h.taskName}</strong> — ${label} por ${h.userName} — ${formatDateTime(h.timestamp)}</li>`;
-    }).join('') + '</ul>';
+    const label = { created: 'Creada', completed: 'Completada', reopened: 'Reabierta', deleted: 'Eliminada' }[h.action] || h.action;
+    let style = 'margin-bottom:6px;line-height:1.4;';
+    if (h.action === 'completed') style += 'color:darkgreen;';
+    if (h.action === 'deleted') style += 'color:darkred;';
+    const body = h.action === 'completed' || h.action === 'deleted'
+      ? `<s><strong>${h.taskName}</strong> — ${label} por ${h.userName} — ${formatDateTime(h.timestamp)}</s>`
+      : `<strong>${h.taskName}</strong> — ${label} por ${h.userName} — ${formatDateTime(h.timestamp)}`;
+    return `<li style="${style}">${body}</li>`;
+  }).join('') + '</ul>';
   } catch {}
 }
 

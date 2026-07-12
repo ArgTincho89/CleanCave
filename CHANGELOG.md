@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.2
+
+- **Contador**: cantidad de tareas globales activas debajo del formulario.
+- **Histórico**: completadas en verde tachado, eliminadas en rojo tachado.
+
 ## v1.4.1
 
 - **Tareas globales**: eliminado checkbox innecesario de cada tarjeta.

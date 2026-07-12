@@ -1,6 +1,16 @@
 {
-  "current": "v1.4.1",
+  "current": "v1.4.2",
   "versions": [
+    {
+      "version": "v1.4.2",
+      "date": "2026-07-12",
+      "features": [
+        "Contador de tareas globales activas debajo del formulario de agregar"
+      ],
+      "fixes": [
+        "Histórico de tareas globales: completadas en verde tachado, eliminadas en rojo tachado"
+      ]
+    },
     {
       "version": "v1.4.1",
       "date": "2026-07-12",
