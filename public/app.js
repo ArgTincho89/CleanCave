@@ -990,7 +990,6 @@ async function loadGlobalTasks() {
   if (!container) return;
   container.innerHTML = tasks.map(t => `
     <div class="global-task-item ${t.status === 'done' ? 'done' : ''}">
-      <span class="gti-check">${t.status === 'done' ? '✓' : ''}</span>
       <div class="gti-body">
         <div class="gti-name">${t.name}</div>
         ${t.description ? '<div class="gti-desc">' + t.description + '</div>' : ''}
@@ -1013,12 +1012,15 @@ async function loadGlobalTasks() {
     b.addEventListener('click', async () => {
       const task = state.globalTasks.find(t => t.id === b.dataset.id);
       if (!task) return;
-      const name = prompt('Nombre de la tarea:', task.name);
+      const input = prompt('Editá la tarea: nombre | descripción', task.name + ' | ' + (task.description || ''));
+      if (!input) return;
+      const parts = input.split('|').map(s => s.trim());
+      const name = parts[0];
       if (!name) return;
-      const description = prompt('Descripción (opcional):', task.description || '');
+      const description = parts.slice(1).join(' | ') || '';
       await api('/global-tasks/' + b.dataset.id, {
         method: 'PUT',
-        body: JSON.stringify({ name, description: description || '' })
+        body: JSON.stringify({ name, description })
       });
       await loadGlobalTasks();
     });

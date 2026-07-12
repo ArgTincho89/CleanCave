@@ -308,12 +308,6 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 }
 .global-task-item.done { opacity: 0.7; background: #f4f6f2; }
 .global-task-item.done .gti-name { text-decoration: line-through; color: var(--muted); }
-.gti-check {
-  width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--accent1);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px;
-  margin-top: 2px;
-}
-.global-task-item.done .gti-check { background: var(--accent1); color: white; }
 .gti-body { flex: 1; min-width: 0; }
 .gti-name { font-size: 14px; font-weight: 600; }
 .gti-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }

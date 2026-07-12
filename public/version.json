@@ -10,7 +10,9 @@
         "Modal de avatar con botón X para cerrar"
       ],
       "fixes": [
-        "Botón 'Borrar caché' en pantalla de login para limpiar service worker sin reinstalar la PWA"
+        "Botón 'Borrar caché' en pantalla de login para limpiar service worker sin reinstalar la PWA",
+        "Tareas globales: eliminado checkbox innecesario de cada tarjeta",
+        "Editar tarea global ahora permite editar título y descripción en un solo prompt"
       ]
     },
     {

@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.1
+
+- **Tareas globales**: eliminado checkbox innecesario de cada tarjeta.
+- **Editar tarea global**: ahora permite editar título y descripción en un solo prompt (nombre | descripción).
+
 ## v1.4.0
 
 - **Tareas globales**: layout rediseñado — sin metadatos en la tarjeta, botones apilados verticalmente a la derecha.
