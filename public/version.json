@@ -1,6 +1,15 @@
 {
-  "current": "v1.4.2",
+  "current": "v1.4.3",
   "versions": [
+    {
+      "version": "v1.4.3",
+      "date": "2026-07-12",
+      "features": [],
+      "fixes": [
+        "Hotfix: semana comenzaba a las 00:00 en vez de 08:00 del domingo, causaba semana incorrecta y tareas en 0 fuera de hora",
+        "Reemplazado timezone hardcodeado Europe/Madrid por TIMEZONE configurable (default America/Argentina/Buenos_Aires)"
+      ]
+    },
     {
       "version": "v1.4.2",
       "date": "2026-07-12",

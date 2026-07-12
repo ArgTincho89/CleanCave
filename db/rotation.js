@@ -11,7 +11,9 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Domingo de la semana que contiene esa fecha (mismo criterio que currentWeekStart en server.js).
+// Domingo de la semana que contiene esa fecha. Esta función recibe solo una
+// fecha (sin hora), por lo que NO aplica el cutoff de las 08:00 (a diferencia
+// de currentWeekStart en server.js que sí lo hace para el momento actual).
 function weekStartFor(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));

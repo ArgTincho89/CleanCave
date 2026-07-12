@@ -34,11 +34,18 @@ function requireAuth(req, res, next) {
 }
 
 function currentWeekStart() {
-  // Domingo de la semana actual, como identificador de la semana.
-  const d = new Date();
-  const day = d.getDay(); // 0 = domingo
-  d.setDate(d.getDate() - day);
-  return d.toISOString().slice(0, 10);
+  // Domingo de la semana que contiene el momento actual, con la semana
+  // comenzando a las 08:00 del domingo (configurable vía TIMEZONE).
+  // Si hoy es domingo antes de las 08:00, la semana actual es la ANTERIOR.
+  const tz = process.env.TIMEZONE || 'America/Argentina/Buenos_Aires';
+  const local = getDateInTimezone(tz);
+  let target = new Date(Date.UTC(local.year, local.month - 1, local.day));
+  if (local.hour < 8) {
+    target.setUTCDate(target.getUTCDate() - 1);
+  }
+  const day = target.getUTCDay();
+  target.setUTCDate(target.getUTCDate() - day);
+  return target.toISOString().slice(0, 10);
 }
 
 // Versión reducida de un usuario, segura para mostrarle a cualquier
@@ -106,10 +113,8 @@ function ensureCurrentWeekGenerated(data, householdId) {
   const household = data.households.find(h => h.id === householdId);
   if (!household) return weekStart;
 
-  // Ya se generó por el cron (o por un generate manual previo).
   if (household.lastGeneratedWeek === weekStart) return weekStart;
 
-  // Si ya hay asignaciones para esta semana, solo marcamos que está generada.
   const hasAssignments = data.assignments.some(
     a => a.householdId === householdId && a.weekStart === weekStart
   );
@@ -117,14 +122,6 @@ function ensureCurrentWeekGenerated(data, householdId) {
     household.lastGeneratedWeek = weekStart;
     return weekStart;
   }
-
-  // Sábado: no generar (la semana termina mañana, el cron del domingo se encarga).
-  if (new Date().getDay() === 6) return weekStart;
-
-  // Domingo antes de las 8am Europe/Madrid: no generar.
-  const eu = getDateInTimezone('Europe/Madrid');
-  const euDate = new Date(eu.year, eu.month - 1, eu.day);
-  if (euDate.getDay() === 0 && eu.hour < 8) return weekStart;
 
   generateWeek(data, householdId, weekStart);
   household.lastGeneratedWeek = weekStart;
@@ -794,9 +791,10 @@ app.get('/api/global-tasks/history', requireAuth, (req, res) => {
 });
 
 // ---------- cron: generación automática semanal ----------
-// Se ejecuta los domingos a las 8:00 (Europe/Madrid) y genera la lista para
-// todos los hogares. Usa lastGeneratedWeek para no duplicar si ya se generó
-// (por ejemplo, si alguien forzó un generate manual antes).
+// Se ejecuta los domingos a las 8:00 (timezone configurable vía TIMEZONE,
+// default America/Argentina/Buenos_Aires) y genera la lista para todos los
+// hogares. Usa lastGeneratedWeek para no duplicar si ya se generó.
+const cronTimezone = process.env.TIMEZONE || 'America/Argentina/Buenos_Aires';
 const cronTask = cron.schedule('0 8 * * 0', () => {
   const data = load();
   const weekStart = currentWeekStart();
@@ -809,7 +807,7 @@ const cronTask = cron.schedule('0 8 * * 0', () => {
     });
     console.log(`[cron] Lista semanal generada para el hogar "${h.name}"`);
   });
-}, { timezone: 'Europe/Madrid' });
+}, { timezone: cronTimezone });
 
 // En tests detenemos el cron para que el proceso pueda terminar.
 if (process.env.NODE_ENV === 'test') {

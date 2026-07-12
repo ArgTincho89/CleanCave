@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.3 (hotfix)
+
+- **Semana**: corregido el inicio de semana a las 08:00 del domingo (antes arrancaba a las 00:00, lo que causaba semana incorrecta y tareas en 0).
+- **Timezone**: reemplazado Europe/Madrid hardcodeado por variable `TIMEZONE` configurable (default `America/Argentina/Buenos_Aires`).
+
 ## v1.4.2
 
 - **Contador**: cantidad de tareas globales activas debajo del formulario.

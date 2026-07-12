@@ -300,8 +300,13 @@ function attachHoverTooltip(anchorEl, containerEl, tooltipClass, buildHtml) {
 // ---------------- Dashboard ----------------
 
 function thisWeekStart() {
+  // Semana comienza a las 08:00 del domingo (mismo criterio que en server.js).
   const d = new Date();
-  d.setDate(d.getDate() - d.getDay());
+  if (d.getHours() < 8) {
+    d.setDate(d.getDate() - 1);
+  }
+  const day = d.getDay();
+  d.setDate(d.getDate() - day);
   return d.toISOString().slice(0, 10);
 }
 
