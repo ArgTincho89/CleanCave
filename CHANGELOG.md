@@ -4,6 +4,7 @@
 
 - **Tareas globales**: eliminado checkbox innecesario de cada tarjeta.
 - **Editar tarea global**: ahora con modal propio (nombre + descripción) igual que las tareas de Configurar tareas.
+- **Avatar**: clic en cualquier foto de usuario abre el modal ampliado (antes solo en Perfil).
 
 ## v1.4.0
 

@@ -7,7 +7,8 @@
       "features": [],
       "fixes": [
         "Tareas globales: eliminado checkbox innecesario de cada tarjeta",
-        "Editar tarea global: ahora con modal propio (nombre + descripción) como las tareas de Configurar tareas"
+        "Editar tarea global: ahora con modal propio (nombre + descripción) como las tareas de Configurar tareas",
+        "Clic en cualquier avatar con foto abre el modal ampliado (no solo en Perfil)"
       ]
     },
     {

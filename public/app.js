@@ -135,7 +135,6 @@ function showPage(pageId, navBtnPage) {
   if (pageId === 'stats') loadStats();
   if (pageId === 'profile' && state.me) {
     setAvatarEl('profile-page-avatar', state.me.user, 'large');
-    setupAvatarModal();
     document.getElementById('recovery-email').value = state.me.user.recoveryEmail || '';
     document.getElementById('pwd-current').value = '';
     document.getElementById('pwd-new').value = '';
@@ -693,16 +692,15 @@ document.getElementById('btn-profile').addEventListener('click', () => {
 });
 document.getElementById('profile-back').addEventListener('click', () => showPage(state.lastActiveNav, state.lastActiveNav));
 
-function setupAvatarModal() {
-  const el = document.getElementById('profile-page-avatar');
-  if (!el) return;
-  el.style.cursor = el.querySelector('img') ? 'pointer' : 'default';
-  el.onclick = () => {
-    if (!el.querySelector('img')) return;
-    document.getElementById('avatar-modal-img').innerHTML = el.innerHTML;
-    document.getElementById('avatar-modal').hidden = false;
-  };
-}
+// Clic en cualquier avatar con foto abre el modal (delegación).
+document.getElementById('view-app').addEventListener('click', e => {
+  const avatar = e.target.closest('.avatar');
+  if (!avatar) return;
+  const img = avatar.querySelector('img');
+  if (!img) return;
+  document.getElementById('avatar-modal-img').innerHTML = avatar.innerHTML;
+  document.getElementById('avatar-modal').hidden = false;
+});
 document.getElementById('avatar-modal').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) document.getElementById('avatar-modal').hidden = true;
 });
@@ -727,7 +725,6 @@ document.getElementById('avatar-file-input').addEventListener('change', async e 
     const { user } = await api('/me/avatar', { method: 'PUT', body: JSON.stringify({ avatarDataUrl: dataUrl }) });
     state.me.user = user;
     setAvatarEl('profile-page-avatar', user, 'large');
-    setupAvatarModal();
     setAvatarEl('profile-avatar', user, 'small');
     statusEl.hidden = true;
     await loadDashboard();

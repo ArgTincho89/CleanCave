@@ -155,7 +155,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 }
 .avatar.small { width: 24px; height: 24px; font-size: 11px; }
 .avatar.large { width: 72px; height: 72px; font-size: 24px; }
-.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
 
 .progress-bar { height: 8px; background: var(--line); border-radius: 6px; overflow: hidden; margin: 8px 0 14px; cursor: pointer; position: relative; }
 .progress-fill { height: 100%; background: var(--accent1); border-radius: 6px; transition: width .3s ease; }
