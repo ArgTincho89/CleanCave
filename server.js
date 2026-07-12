@@ -702,6 +702,17 @@ app.post('/api/global-tasks', requireAuth, (req, res) => {
     };
     data.globalTasks = data.globalTasks || [];
     data.globalTasks.push(t);
+    data.globalTaskHistory = data.globalTaskHistory || [];
+    data.globalTaskHistory.push({
+      id: randomUUID(),
+      householdId: req.session.householdId,
+      taskId: t.id,
+      taskName: name,
+      action: 'created',
+      userName: user ? user.name : '',
+      userId: req.session.userId,
+      timestamp: new Date().toISOString()
+    });
     return t;
   });
   res.json({ task });
@@ -726,17 +737,27 @@ app.post('/api/global-tasks/:id/toggle', requireAuth, (req, res) => {
     if (!data.globalTasks) return null;
     const t = data.globalTasks.find(x => x.id === req.params.id && x.householdId === req.session.householdId);
     if (!t) return null;
+    const user = data.users.find(u => u.id === req.session.userId);
+    const userName = user ? user.name : '';
+    data.globalTaskHistory = data.globalTaskHistory || [];
     if (t.status === 'pending') {
-      const user = data.users.find(u => u.id === req.session.userId);
       t.status = 'done';
       t.completedAt = new Date().toISOString();
       t.completedByUserId = req.session.userId;
-      t.completedByUserName = user ? user.name : '';
+      t.completedByUserName = userName;
+      data.globalTaskHistory.push({
+        id: randomUUID(), householdId: req.session.householdId, taskId: t.id, taskName: t.name,
+        action: 'completed', userName, userId: req.session.userId, timestamp: new Date().toISOString()
+      });
     } else {
       t.status = 'pending';
       t.completedAt = null;
       t.completedByUserId = null;
       t.completedByUserName = null;
+      data.globalTaskHistory.push({
+        id: randomUUID(), householdId: req.session.householdId, taskId: t.id, taskName: t.name,
+        action: 'reopened', userName, userId: req.session.userId, timestamp: new Date().toISOString()
+      });
     }
     return t;
   });
@@ -749,11 +770,27 @@ app.delete('/api/global-tasks/:id', requireAuth, (req, res) => {
     if (!data.globalTasks) return false;
     const idx = data.globalTasks.findIndex(x => x.id === req.params.id && x.householdId === req.session.householdId);
     if (idx === -1) return false;
+    const deleted = data.globalTasks[idx];
+    data.globalTaskHistory = data.globalTaskHistory || [];
+    const user = data.users.find(u => u.id === req.session.userId);
+    data.globalTaskHistory.push({
+      id: randomUUID(), householdId: req.session.householdId, taskId: deleted.id, taskName: deleted.name,
+      action: 'deleted', userName: user ? user.name : '', userId: req.session.userId, timestamp: new Date().toISOString()
+    });
     data.globalTasks.splice(idx, 1);
     return true;
   });
   if (!ok) return res.status(404).json({ error: 'Tarea global no encontrada.' });
   res.json({ ok: true });
+});
+
+app.get('/api/global-tasks/history', requireAuth, (req, res) => {
+  const data = load();
+  const history = (data.globalTaskHistory || [])
+    .filter(h => h.householdId === req.session.householdId)
+    .sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1))
+    .slice(0, 100);
+  res.json({ history });
 });
 
 // ---------- cron: generación automática semanal ----------

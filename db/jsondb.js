@@ -24,8 +24,9 @@ function defaultData() {
                          //   toUserId, toAssignmentId, toTaskName, requestMessage, responseMessage,
                          //   status: pending|accepted|denied, createdAt, respondedAt }
     passwordResets: [], // { id, userId, token, expiresAt, used, createdAt }
-    globalTasks: []     // { id, householdId, name, description, createdByUserId, createdByUserName,
-                        //   createdAt, completedAt, completedByUserId, completedByUserName, status }
+    globalTasks: [],    // { id, householdId, name, description, createdByUserId, createdByUserName,
+                         //   createdAt, completedAt, completedByUserId, completedByUserName, status }
+    globalTaskHistory: [] // { id, householdId, taskId, taskName, action, userName, userId, timestamp }
   };
 }
 

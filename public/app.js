@@ -130,7 +130,7 @@ function showPage(pageId, navBtnPage) {
     state.lastActiveNav = navBtnPage;
   }
   if (pageId === 'tasks') loadTasks();
-  if (pageId === 'global-tasks') loadGlobalTasks();
+  if (pageId === 'global-tasks') { loadGlobalTasks(); loadGlobalTasksHistory(); }
   if (pageId === 'history') loadHistoryWeeks();
   if (pageId === 'stats') loadStats();
   if (pageId === 'profile' && state.me) {
@@ -703,7 +703,10 @@ function setupAvatarModal() {
     document.getElementById('avatar-modal').hidden = false;
   };
 }
-document.getElementById('avatar-modal').addEventListener('click', () => {
+document.getElementById('avatar-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) document.getElementById('avatar-modal').hidden = true;
+});
+document.getElementById('avatar-modal-close').addEventListener('click', () => {
   document.getElementById('avatar-modal').hidden = true;
 });
 
@@ -987,18 +990,10 @@ async function loadGlobalTasks() {
   if (!container) return;
   container.innerHTML = tasks.map(t => `
     <div class="global-task-item ${t.status === 'done' ? 'done' : ''}">
-      <div class="gti-left">
-        <span class="gti-check">${t.status === 'done' ? '✓' : ''}</span>
-        <div>
-          <div class="gti-name">${t.name}</div>
-          ${t.description ? '<div class="gti-desc">' + t.description + '</div>' : ''}
-          <div class="gti-meta">
-            ${t.status === 'done'
-              ? `Hecha por ${t.completedByUserName} — ${formatDateTime(t.completedAt)}`
-              : `Creada por ${t.createdByUserName} — ${formatDateTime(t.createdAt)}`
-            }
-          </div>
-        </div>
+      <span class="gti-check">${t.status === 'done' ? '✓' : ''}</span>
+      <div class="gti-body">
+        <div class="gti-name">${t.name}</div>
+        ${t.description ? '<div class="gti-desc">' + t.description + '</div>' : ''}
       </div>
       <div class="gti-actions">
         <button class="btn ghost small toggle-gt" data-id="${t.id}">${t.status === 'done' ? 'Reabrir' : 'Hecha'}</button>
@@ -1045,6 +1040,23 @@ document.getElementById('form-new-global-task').addEventListener('submit', async
   document.getElementById('new-global-task-name').value = '';
   document.getElementById('new-global-task-desc').value = '';
   await loadGlobalTasks();
+  await loadGlobalTasksHistory();
 });
+
+async function loadGlobalTasksHistory() {
+  const container = document.getElementById('global-tasks-history-content');
+  if (!container) return;
+  try {
+    const { history } = await api('/global-tasks/history');
+    if (history.length === 0) {
+      container.innerHTML = '<div class="empty-state" style="padding:8px 0;">Todavía no hay actividad en tareas globales.</div>';
+      return;
+    }
+    container.innerHTML = '<ul style="margin:0;padding-left:18px;">' + history.map(h => {
+      const label = { created: 'Creada', completed: 'Completada', reopened: 'Reabierta', deleted: 'Eliminada' }[h.action] || h.action;
+      return `<li style="margin-bottom:6px;line-height:1.4;"><strong>${h.taskName}</strong> — ${label} por ${h.userName} — ${formatDateTime(h.timestamp)}</li>`;
+    }).join('') + '</ul>';
+  } catch {}
+}
 
 boot();

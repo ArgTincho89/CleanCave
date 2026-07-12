@@ -229,6 +229,11 @@
       </form>
 
       <div id="global-tasks-list"></div>
+
+      <details id="global-tasks-history-details" style="margin-top:24px;">
+        <summary style="cursor:pointer;font-size:14px;font-weight:600;color:var(--muted);padding:8px 0;">Histórico tareas globales</summary>
+        <div id="global-tasks-history-content" style="padding-top:8px;font-size:13px;"></div>
+      </details>
     </main>
   </div>
 
@@ -284,8 +289,11 @@
 <!-- ===================== MODAL: avatar ampliado ===================== -->
 <div id="avatar-modal" class="modal-overlay" hidden>
   <div class="modal card" style="max-width:500px;align-items:center;text-align:center;">
-    <div id="avatar-modal-img" style="max-width:100%;border-radius:12px;overflow:hidden;"></div>
-    <p class="hint">Hacé clic en cualquier lado para cerrar</p>
+    <div style="position:relative;width:100%;">
+      <button id="avatar-modal-close" class="modal-x" style="position:absolute;top:-8px;right:-8px;">&times;</button>
+      <div id="avatar-modal-img" style="max-width:100%;border-radius:12px;overflow:hidden;"></div>
+    </div>
+    <p class="hint">Hacé clic en la X para cerrar</p>
   </div>
 </div>
 
