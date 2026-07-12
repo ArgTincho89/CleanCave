@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.0
+
+- **Tareas globales**: layout rediseñado — sin metadatos en la tarjeta, botones apilados verticalmente a la derecha.
+- **Histórico de tareas globales**: desplegable al final de la página con trazabilidad de creación, finalización y eliminación.
+- **Modal de avatar**: ahora tiene botón X para cerrar además del clic fuera.
+- **Botón "Borrar caché"**: en pantalla de login para limpiar service worker sin reinstalar la PWA.
+
 ## v1.3.0
 
 - **Tareas globales**: listado de tareas únicas del hogar sin incidencia en reparto, estadísticas ni histórico.

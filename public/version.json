@@ -1,6 +1,18 @@
 {
-  "current": "v1.3.0",
+  "current": "v1.4.0",
   "versions": [
+    {
+      "version": "v1.4.0",
+      "date": "2026-07-12",
+      "features": [
+        "Tareas globales: layout rediseñado — sin metadatos en la tarjeta, botones apilados verticalmente a la derecha",
+        "Histórico de tareas globales: desplegable al final de la página con registro de creación, finalización y eliminación",
+        "Modal de avatar con botón X para cerrar"
+      ],
+      "fixes": [
+        "Botón 'Borrar caché' en pantalla de login para limpiar service worker sin reinstalar la PWA"
+      ]
+    },
     {
       "version": "v1.3.0",
       "date": "2026-07-05",
