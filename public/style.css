@@ -390,7 +390,6 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   .history-task-row .ht-when { font-size: 11px; }
   .swap-history-item { font-size: 13px; padding: 10px 12px; }
   .swap-history-item .sh-top { flex-direction: column; align-items: flex-start; }
-  .gti-actions { flex-direction: row; flex-wrap: wrap; }
   .gti-actions .btn { min-width: 70px; }
   #form-new-global-task { flex-direction: column; }
   #form-new-global-task input[type="text"], #form-new-global-task textarea { min-width: 100%; }
