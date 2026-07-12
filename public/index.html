@@ -66,6 +66,20 @@
         <button type="submit" class="btn primary">Crear hogar</button>
         <p class="error" id="register-error"></p>
       </form>
+      <div id="version-info">
+        Versión: <span id="current-version">cargando...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== MODAL: historial de versiones ===================== -->
+  <div id="changelog-modal" class="modal-overlay" hidden>
+    <div class="modal card" style="max-width:600px;">
+      <h3>Historial de versiones</h3>
+      <div id="changelog-content" style="font-size:13px;"></div>
+      <div class="modal-actions">
+        <button id="changelog-close" class="btn ghost small">Cerrar</button>
+      </div>
     </div>
   </div>
 
@@ -89,6 +103,7 @@
     <nav class="topbar-nav">
       <button class="nav-btn active" data-page="dashboard">Semana en curso</button>
       <button class="nav-btn" data-page="tasks">Configurar tareas</button>
+      <button class="nav-btn" data-page="global-tasks">Tareas globales</button>
       <button class="nav-btn" data-page="history">Histórico</button>
       <button class="nav-btn" data-page="stats">Estadísticas</button>
       <button class="nav-btn" data-page="profile">Perfil</button>
@@ -195,6 +210,24 @@
 
         <button id="btn-logout-mobile" class="btn ghost" style="color:var(--danger);width:100%;justify-content:center;">Cerrar sesión</button>
       </div>
+    </main>
+
+    <!-- -------- GLOBAL TASKS -------- -->
+    <main id="page-global-tasks" class="page">
+      <div class="dashboard-header">
+        <div>
+          <h2>Tareas globales del hogar</h2>
+          <p class="muted">Tareas únicas que no dependen del reparto semanal: arreglos, trámites, compras grandes, etc. Cualquier integrante puede crearlas, marcarlas como hechas o eliminarlas.</p>
+        </div>
+      </div>
+
+      <form id="form-new-global-task" class="new-task-form card">
+        <input type="text" id="new-global-task-name" placeholder="Nombre de la tarea" required style="min-width:200px;">
+        <textarea id="new-global-task-desc" placeholder="Descripción (opcional)" rows="1" style="min-width:200px;"></textarea>
+        <button type="submit" class="btn primary">+ Agregar</button>
+      </form>
+
+      <div id="global-tasks-list"></div>
     </main>
   </div>
 

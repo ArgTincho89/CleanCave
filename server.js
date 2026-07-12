@@ -86,15 +86,48 @@ function notifyPartnerIfDone(data, householdId, userId, weekStart) {
   });
 }
 
+// Devuelve año, mes, día y hora actual en una zona horaria concreta.
+function getDateInTimezone(tz) {
+  const f = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+    hour12: false
+  });
+  const parts = f.formatToParts(new Date());
+  const p = (type) => parseInt(parts.find(x => x.type === type).value);
+  return { year: p('year'), month: p('month'), day: p('day'), hour: p('hour'), minute: p('minute') };
+}
+
 // Genera la semana actual si todavía no existe ninguna asignación para ella.
 // Así el listado aparece solo, sin depender de que alguien apriete un botón.
 function ensureCurrentWeekGenerated(data, householdId) {
   const weekStart = currentWeekStart();
-  // Si es sábado (la semana termina mañana), no generamos porque el cron
-  // del domingo va a repartir tareas nuevas. Evita que se regeneren
-  // asignaciones manualmente limpiadas para arrancar fresh al otro día.
+  const household = data.households.find(h => h.id === householdId);
+  if (!household) return weekStart;
+
+  // Ya se generó por el cron (o por un generate manual previo).
+  if (household.lastGeneratedWeek === weekStart) return weekStart;
+
+  // Si ya hay asignaciones para esta semana, solo marcamos que está generada.
+  const hasAssignments = data.assignments.some(
+    a => a.householdId === householdId && a.weekStart === weekStart
+  );
+  if (hasAssignments) {
+    household.lastGeneratedWeek = weekStart;
+    return weekStart;
+  }
+
+  // Sábado: no generar (la semana termina mañana, el cron del domingo se encarga).
   if (new Date().getDay() === 6) return weekStart;
-  generateWeek(data, householdId, weekStart); // idempotente: no duplica ni si ya existían algunas
+
+  // Domingo antes de las 8am Europe/Madrid: no generar.
+  const eu = getDateInTimezone('Europe/Madrid');
+  const euDate = new Date(eu.year, eu.month - 1, eu.day);
+  if (euDate.getDay() === 0 && eu.hour < 8) return weekStart;
+
+  generateWeek(data, householdId, weekStart);
+  household.lastGeneratedWeek = weekStart;
   return weekStart;
 }
 
@@ -639,20 +672,107 @@ app.post('/api/push/register', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- cron: generación automática semanal ----------
-// Por defecto domingo (día 0) a las 8:00, configurable por hogar (cronDay/cronHour).
-// node-cron corre cada hora y chequea qué hogares "matchean" ese día/hora.
-// (El servidor tiene que estar prendido en ese momento; al hostearlo esto corre 24/7.)
-const cronTask = cron.schedule('0 * * * *', () => {
+// ---------- tareas globales ----------
+
+app.get('/api/global-tasks', requireAuth, (req, res) => {
   const data = load();
-  const now = new Date();
-  data.households.forEach(h => {
-    if (now.getDay() === (h.cronDay ?? 0) && now.getHours() === (h.cronHour ?? 8)) {
-      transaction(d => generateWeek(d, h.id, currentWeekStart()));
-      console.log(`[cron] Lista semanal generada para el hogar "${h.name}"`);
-    }
-  });
+  const tasks = (data.globalTasks || [])
+    .filter(t => t.householdId === req.session.householdId)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  res.json({ tasks });
 });
+
+app.post('/api/global-tasks', requireAuth, (req, res) => {
+  const { name, description } = req.body;
+  if (!name) return res.status(400).json({ error: 'Falta el nombre de la tarea.' });
+  const task = transaction(data => {
+    const user = data.users.find(u => u.id === req.session.userId);
+    const t = {
+      id: randomUUID(),
+      householdId: req.session.householdId,
+      name,
+      description: description || '',
+      createdByUserId: req.session.userId,
+      createdByUserName: user ? user.name : '',
+      createdAt: new Date().toISOString(),
+      completedAt: null,
+      completedByUserId: null,
+      completedByUserName: null,
+      status: 'pending'
+    };
+    data.globalTasks = data.globalTasks || [];
+    data.globalTasks.push(t);
+    return t;
+  });
+  res.json({ task });
+});
+
+app.put('/api/global-tasks/:id', requireAuth, (req, res) => {
+  const { name, description } = req.body;
+  const task = transaction(data => {
+    if (!data.globalTasks) return null;
+    const t = data.globalTasks.find(x => x.id === req.params.id && x.householdId === req.session.householdId);
+    if (!t) return null;
+    if (name !== undefined) t.name = name;
+    if (description !== undefined) t.description = description;
+    return t;
+  });
+  if (!task) return res.status(404).json({ error: 'Tarea global no encontrada.' });
+  res.json({ task });
+});
+
+app.post('/api/global-tasks/:id/toggle', requireAuth, (req, res) => {
+  const task = transaction(data => {
+    if (!data.globalTasks) return null;
+    const t = data.globalTasks.find(x => x.id === req.params.id && x.householdId === req.session.householdId);
+    if (!t) return null;
+    if (t.status === 'pending') {
+      const user = data.users.find(u => u.id === req.session.userId);
+      t.status = 'done';
+      t.completedAt = new Date().toISOString();
+      t.completedByUserId = req.session.userId;
+      t.completedByUserName = user ? user.name : '';
+    } else {
+      t.status = 'pending';
+      t.completedAt = null;
+      t.completedByUserId = null;
+      t.completedByUserName = null;
+    }
+    return t;
+  });
+  if (!task) return res.status(404).json({ error: 'Tarea global no encontrada.' });
+  res.json({ task });
+});
+
+app.delete('/api/global-tasks/:id', requireAuth, (req, res) => {
+  const ok = transaction(data => {
+    if (!data.globalTasks) return false;
+    const idx = data.globalTasks.findIndex(x => x.id === req.params.id && x.householdId === req.session.householdId);
+    if (idx === -1) return false;
+    data.globalTasks.splice(idx, 1);
+    return true;
+  });
+  if (!ok) return res.status(404).json({ error: 'Tarea global no encontrada.' });
+  res.json({ ok: true });
+});
+
+// ---------- cron: generación automática semanal ----------
+// Se ejecuta los domingos a las 8:00 (Europe/Madrid) y genera la lista para
+// todos los hogares. Usa lastGeneratedWeek para no duplicar si ya se generó
+// (por ejemplo, si alguien forzó un generate manual antes).
+const cronTask = cron.schedule('0 8 * * 0', () => {
+  const data = load();
+  const weekStart = currentWeekStart();
+  data.households.forEach(h => {
+    if (h.lastGeneratedWeek === weekStart) return;
+    transaction(d => {
+      generateWeek(d, h.id, weekStart);
+      const house = d.households.find(x => x.id === h.id);
+      if (house) house.lastGeneratedWeek = weekStart;
+    });
+    console.log(`[cron] Lista semanal generada para el hogar "${h.name}"`);
+  });
+}, { timezone: 'Europe/Madrid' });
 
 // En tests detenemos el cron para que el proceso pueda terminar.
 if (process.env.NODE_ENV === 'test') {

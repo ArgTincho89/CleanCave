@@ -1,4 +1,4 @@
-const state = { me: null, currentWeekStart: null, weekData: null, swapContext: null, pendingComplete: null, lastActiveNav: 'dashboard' };
+const state = { me: null, currentWeekStart: null, weekData: null, swapContext: null, pendingComplete: null, lastActiveNav: 'dashboard', globalTasks: [] };
 
 const AVATAR_COLORS = ['#c1652f', '#6f8f6a', '#7a6bb5', '#c14b4b', '#3f7a9e'];
 const CHART_COLORS = ['#c1652f', '#6f8f6a', '#7a6bb5', '#c14b4b', '#3f7a9e', '#e0a458', '#4a8f8b', '#a45c8c'];
@@ -130,6 +130,7 @@ function showPage(pageId, navBtnPage) {
     state.lastActiveNav = navBtnPage;
   }
   if (pageId === 'tasks') loadTasks();
+  if (pageId === 'global-tasks') loadGlobalTasks();
   if (pageId === 'history') loadHistoryWeeks();
   if (pageId === 'stats') loadStats();
   if (pageId === 'profile' && state.me) {
@@ -148,6 +149,31 @@ function showPage(pageId, navBtnPage) {
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => showPage(btn.dataset.page, btn.dataset.page));
 });
+
+// ---------------- Version info / changelog ----------------
+
+document.getElementById('version-info').addEventListener('click', () => {
+  document.getElementById('changelog-modal').hidden = false;
+});
+document.getElementById('changelog-close').addEventListener('click', () => {
+  document.getElementById('changelog-modal').hidden = true;
+});
+
+async function loadVersion() {
+  try {
+    const { current, versions } = await (await fetch('/version.json')).json();
+    document.getElementById('current-version').textContent = current;
+    document.getElementById('changelog-content').innerHTML = versions.map(v => `
+      <div style="margin-bottom:16px;">
+        <strong>${v.version}</strong> <span class="muted">(${v.date})</span>
+        ${v.features.length ? '<div style="margin-top:4px;"><em>Nuevo:</em><ul>' + v.features.map(f => '<li>' + f + '</li>').join('') + '</ul></div>' : ''}
+        ${v.fixes.length ? '<div><em>Correcciones:</em><ul>' + v.fixes.map(f => '<li>' + f + '</li>').join('') + '</ul></div>' : ''}
+      </div>
+    `).join('');
+  } catch {}
+}
+
+loadVersion();
 
 // ---------------- Boot ----------------
 
@@ -941,5 +967,74 @@ async function loadStats() {
   grid.appendChild(card4);
   renderPieChart(card4, bottom5.map((t, i) => ({ label: t.taskName, value: t.total - t.completed, color: CHART_COLORS[(i + 3) % CHART_COLORS.length] })));
 }
+
+// ---------------- Tareas globales ----------------
+
+async function loadGlobalTasks() {
+  const { tasks } = await api('/global-tasks');
+  state.globalTasks = tasks;
+  const container = document.getElementById('global-tasks-list');
+  if (!container) return;
+  container.innerHTML = tasks.map(t => `
+    <div class="global-task-item ${t.status === 'done' ? 'done' : ''}">
+      <div class="gti-left">
+        <span class="gti-check">${t.status === 'done' ? '✓' : ''}</span>
+        <div>
+          <div class="gti-name">${t.name}</div>
+          ${t.description ? '<div class="gti-desc">' + t.description + '</div>' : ''}
+          <div class="gti-meta">
+            ${t.status === 'done'
+              ? `Hecha por ${t.completedByUserName} — ${formatDateTime(t.completedAt)}`
+              : `Creada por ${t.createdByUserName} — ${formatDateTime(t.createdAt)}`
+            }
+          </div>
+        </div>
+      </div>
+      <div class="gti-actions">
+        <button class="btn ghost small toggle-gt" data-id="${t.id}">${t.status === 'done' ? 'Reabrir' : 'Hecha'}</button>
+        <button class="btn ghost small edit-gt" data-id="${t.id}">Editar</button>
+        <button class="btn danger small delete-gt" data-id="${t.id}">Eliminar</button>
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.toggle-gt').forEach(b => {
+    b.addEventListener('click', async () => {
+      await api('/global-tasks/' + b.dataset.id + '/toggle', { method: 'POST' });
+      await loadGlobalTasks();
+    });
+  });
+  container.querySelectorAll('.edit-gt').forEach(b => {
+    b.addEventListener('click', async () => {
+      const task = state.globalTasks.find(t => t.id === b.dataset.id);
+      if (!task) return;
+      const name = prompt('Nombre de la tarea:', task.name);
+      if (!name) return;
+      const description = prompt('Descripción (opcional):', task.description || '');
+      await api('/global-tasks/' + b.dataset.id, {
+        method: 'PUT',
+        body: JSON.stringify({ name, description: description || '' })
+      });
+      await loadGlobalTasks();
+    });
+  });
+  container.querySelectorAll('.delete-gt').forEach(b => {
+    b.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar esta tarea global?')) return;
+      await api('/global-tasks/' + b.dataset.id, { method: 'DELETE' });
+      await loadGlobalTasks();
+    });
+  });
+}
+
+document.getElementById('form-new-global-task').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = document.getElementById('new-global-task-name').value;
+  const description = document.getElementById('new-global-task-desc').value;
+  await api('/global-tasks', { method: 'POST', body: JSON.stringify({ name, description }) });
+  document.getElementById('new-global-task-name').value = '';
+  document.getElementById('new-global-task-desc').value = '';
+  await loadGlobalTasks();
+});
 
 boot();

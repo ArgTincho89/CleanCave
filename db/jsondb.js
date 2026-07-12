@@ -23,7 +23,9 @@ function defaultData() {
     swapRequests: [],   // { id, householdId, weekStart, fromUserId, fromAssignmentId, fromTaskName,
                          //   toUserId, toAssignmentId, toTaskName, requestMessage, responseMessage,
                          //   status: pending|accepted|denied, createdAt, respondedAt }
-    passwordResets: []  // { id, userId, token, expiresAt, used, createdAt }
+    passwordResets: [], // { id, userId, token, expiresAt, used, createdAt }
+    globalTasks: []     // { id, householdId, name, description, createdByUserId, createdByUserName,
+                        //   createdAt, completedAt, completedByUserId, completedByUserName, status }
   };
 }
 

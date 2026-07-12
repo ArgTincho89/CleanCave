@@ -748,4 +748,135 @@ describe('API', () => {
       expect(infoNotif.message).toContain('completó');
     });
   });
+
+  describe('Global Tasks (authenticated)', () => {
+    function authedAgent() {
+      const agent = request.agent(app);
+      return createHousehold(agent).then(() => agent);
+    }
+
+    it('GET /api/global-tasks should return empty list initially', async () => {
+      const agent = await authedAgent();
+      const res = await agent.get('/api/global-tasks');
+      expect(res.status).toBe(200);
+      expect(res.body.tasks).toEqual([]);
+    });
+
+    it('POST /api/global-tasks should create a task', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/global-tasks')
+        .send({ name: 'Fix leaking faucet', description: 'Kitchen sink' });
+      expect(res.status).toBe(200);
+      expect(res.body.task.name).toBe('Fix leaking faucet');
+      expect(res.body.task.description).toBe('Kitchen sink');
+      expect(res.body.task.status).toBe('pending');
+    });
+
+    it('POST /api/global-tasks should reject missing name', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/global-tasks')
+        .send({ description: 'No name here' });
+      expect(res.status).toBe(400);
+    });
+
+    it('GET /api/global-tasks should list created tasks in reverse order', async () => {
+      const agent = await authedAgent();
+      await agent.post('/api/global-tasks').send({ name: 'Task A' });
+      await agent.post('/api/global-tasks').send({ name: 'Task B' });
+      const res = await agent.get('/api/global-tasks');
+      expect(res.status).toBe(200);
+      expect(res.body.tasks).toHaveLength(2);
+      expect(res.body.tasks[0].name).toBe('Task B');
+    });
+
+    it('PUT /api/global-tasks/:id should update a task', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/global-tasks').send({ name: 'Old name' });
+      const taskId = created.body.task.id;
+
+      const res = await agent
+        .put('/api/global-tasks/' + taskId)
+        .send({ name: 'New name', description: 'Updated' });
+      expect(res.status).toBe(200);
+      expect(res.body.task.name).toBe('New name');
+      expect(res.body.task.description).toBe('Updated');
+    });
+
+    it('PUT /api/global-tasks/:id should return 404 for non-existent', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .put('/api/global-tasks/nonexistent')
+        .send({ name: 'Nope' });
+      expect(res.status).toBe(404);
+    });
+
+    it('POST /api/global-tasks/:id/toggle should mark task as done', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/global-tasks').send({ name: 'Toggle me' });
+      const taskId = created.body.task.id;
+
+      const res = await agent.post('/api/global-tasks/' + taskId + '/toggle');
+      expect(res.status).toBe(200);
+      expect(res.body.task.status).toBe('done');
+      expect(res.body.task.completedByUserName).toBe('Alice');
+    });
+
+    it('POST /api/global-tasks/:id/toggle should re-open a done task', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/global-tasks').send({ name: 'Reopen me' });
+      const taskId = created.body.task.id;
+
+      await agent.post('/api/global-tasks/' + taskId + '/toggle');
+      const res = await agent.post('/api/global-tasks/' + taskId + '/toggle');
+      expect(res.status).toBe(200);
+      expect(res.body.task.status).toBe('pending');
+      expect(res.body.task.completedAt).toBeNull();
+    });
+
+    it('POST /api/global-tasks/:id/toggle should return 404 for non-existent', async () => {
+      const agent = await authedAgent();
+      const res = await agent.post('/api/global-tasks/nonexistent/toggle');
+      expect(res.status).toBe(404);
+    });
+
+    it('DELETE /api/global-tasks/:id should delete a task', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/global-tasks').send({ name: 'Delete me' });
+      const taskId = created.body.task.id;
+
+      const res = await agent.delete('/api/global-tasks/' + taskId);
+      expect(res.status).toBe(200);
+
+      const list = await agent.get('/api/global-tasks');
+      expect(list.body.tasks).toHaveLength(0);
+    });
+
+    it('DELETE /api/global-tasks/:id should return 404 for non-existent', async () => {
+      const agent = await authedAgent();
+      const res = await agent.delete('/api/global-tasks/nonexistent');
+      expect(res.status).toBe(404);
+    });
+
+    it('should not see other household global tasks', async () => {
+      const agent1 = request.agent(app);
+      await createHousehold(agent1);
+      await agent1.post('/api/global-tasks').send({ name: 'Household 1 task' });
+
+      const agent2 = request.agent(app);
+      await agent2
+        .post('/api/auth/register-household')
+        .send({
+          householdName: 'Other Home',
+          members: [
+            { name: 'Charlie', username: 'charlie', password: 'pass' },
+            { name: 'Diana', username: 'diana', password: 'pass' }
+          ]
+        });
+
+      const res = await agent2.get('/api/global-tasks');
+      expect(res.body.tasks).toHaveLength(0);
+    });
+  });
 });

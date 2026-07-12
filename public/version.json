@@ -1,0 +1,62 @@
+{
+  "current": "v1.3.0",
+  "versions": [
+    {
+      "version": "v1.3.0",
+      "date": "2026-07-05",
+      "features": [
+        "Tareas globales: listado de tareas únicas del hogar sin incidencia en reparto, estadísticas ni histórico",
+        "Historial de versiones visible desde la pantalla de login, con detalle de features y fixes por versión"
+      ],
+      "fixes": [
+        "Cron: el reparto semanal solo se ejecuta los domingos a las 8:00 (Europe/Madrid), una sola vez por semana",
+        "Auto-generación: no genera tareas antes de las 8am del domingo ni los sábados (la semana está por terminar)",
+        "Histórico mobile: el badge de estado se alinea correctamente en el mismo renglón que el texto",
+        "Botones de acciones en Configurar tareas: ancho mínimo uniforme (Activar/Desactivar no mueven los botones de al lado)"
+      ]
+    },
+    {
+      "version": "v1.2.0",
+      "date": "2026-07-04",
+      "features": [
+        "Topbar refactor: navegación separada del topbar como barra sticky independiente con scroll horizontal en mobile",
+        "Avatar upload feedback: preview inmediato + texto 'Subiendo...' mientras se procesa",
+        "README actualizado y CHANGELOG iniciado"
+      ],
+      "fixes": [
+        "Bind a 0.0.0.0 en vez de localhost para que el proxy de Fly.io pueda conectar",
+        "Volumen cleancave_data montado en fly.toml para que los datos persistan entre reinicios",
+        "Service Worker bumpeado a v3 (los cambios se ven sin hard refresh)",
+        "Force SW update en cada page load + auto-reload automático"
+      ]
+    },
+    {
+      "version": "v1.1.0",
+      "date": "2026-07-02",
+      "features": [
+        "PWA: service worker con app shell precacheado + estrategia cache-first/network-first",
+        "OneSignal push notifications: SDK integrado en frontend y backend",
+        "Despliegue en Fly.io: volumen persistente, secrets, Dockerfile, seed automático",
+        "Mobile-first redesign: CSS responsive con topbar + pestañas scrollables, touch targets de 44px",
+        "Perfil como página (no modal), avatar upload, recuperación de contraseña por email"
+      ],
+      "fixes": []
+    },
+    {
+      "version": "v1.0.0",
+      "date": "2026-06-28",
+      "features": [
+        "App base Express + vanilla JS frontend",
+        "Rotación semanal automática de tareas del hogar",
+        "Traslado de pendientes (badge 'Atrasada')",
+        "Intercambio de tareas entre integrantes",
+        "Histórico por semana",
+        "Estadísticas con gráficos de torta SVG",
+        "Login / registro de hogar con dos integrantes",
+        "Sesiones con express-session",
+        "88 tests, >90% statement coverage"
+      ],
+      "fixes": []
+    }
+  ]
+}

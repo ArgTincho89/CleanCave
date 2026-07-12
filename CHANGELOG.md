@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.0
+
+- **Tareas globales**: listado de tareas únicas del hogar sin incidencia en reparto, estadísticas ni histórico.
+- **Historial de versiones**: modal con changelog visible desde la pantalla de login.
+- **Cron fix**: reparto semanal solo se ejecuta los domingos a las 8:00 (Europe/Madrid), una sola vez por semana.
+- **Auto-generación fix**: no genera tareas antes de las 8am del domingo ni los sábados.
+- **9 tests nuevos**: cobertura de todas las rutas de la API de tareas globales.
+
 ## v1.2.0
 
 - **Topbar refactor**: navegación separada del topbar como barra sticky independiente con scroll horizontal en mobile.
