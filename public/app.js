@@ -307,7 +307,12 @@ function thisWeekStart() {
   }
   const day = d.getDay();
   d.setDate(d.getDate() - day);
-  return d.toISOString().slice(0, 10);
+  // OJO: NO usar toISOString().slice(0,10) porque retorna UTC, no local.
+  // A las 22hs ART (UTC-3), UTC ya es el día siguiente → fecha incorrecta.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + dd;
 }
 
 async function loadDashboard() {
