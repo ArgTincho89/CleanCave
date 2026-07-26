@@ -18,6 +18,7 @@ afterAll(() => {
 
 const { app } = require('../server');
 const request = require('supertest');
+const { addDays } = require('../db/rotation');
 
 function createHousehold(agent) {
   return agent
@@ -300,6 +301,43 @@ describe('API', () => {
       const res = await agent.post('/api/assignments/generate');
       expect(res.status).toBe(200);
       expect(res.body.weekStart).toBeDefined();
+    });
+
+    it('GET /api/assignments should auto-generate when frontend requests a future week (timezone mismatch)', async () => {
+      // Simula el caso donde el frontend (en Madrid, UTC+2) ya está en domingo
+      // a las 08:00+ pero el servidor (configurado en ART, UTC-3) todavía está
+      // en sábado por la noche. El frontend pide la semana NUEVA y el servidor
+      // debe generarla aunque su currentWeekStart() devuelva la semana anterior.
+      const agent = await authedAgentWithTask();
+
+      // Calculamos el domingo que sigue al currentWeekStart() del servidor
+      // para simular lo que mandaría un frontend en una zona horaria adelantada.
+      const currentRes = await agent.get('/api/assignments');
+      const currentWeek = currentRes.body.weekStart;
+      const nextSunday = addDays(currentWeek, 7);
+
+      // Pedir la semana "futura" (desde la perspectiva del servidor)
+      const res = await agent.get('/api/assignments?weekStart=' + nextSunday);
+      expect(res.status).toBe(200);
+      expect(res.body.weekStart).toBe(nextSunday);
+
+      // Debe haber tareas generadas, no lista vacía
+      const allTasks = Object.values(res.body.byUser).flatMap(u => u.tasks);
+      expect(allTasks.length).toBeGreaterThan(0);
+      allTasks.forEach(t => {
+        expect(t.weekStart).toBe(nextSunday);
+        expect(t.status).toBe('pending');
+      });
+    });
+
+    it('GET /api/assignments should NOT auto-generate for a past week', async () => {
+      // Pedir una semana pasada no debe disparar generación.
+      const agent = await authedAgentWithTask();
+      const res = await agent.get('/api/assignments?weekStart=2020-01-05');
+      expect(res.status).toBe(200);
+      // No hay tareas para esa semana porque nunca se generó (y no se debe generar ahora)
+      const allTasks = Object.values(res.body.byUser).flatMap(u => u.tasks);
+      expect(allTasks.length).toBe(0);
     });
   });
 

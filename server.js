@@ -108,8 +108,13 @@ function getDateInTimezone(tz) {
 
 // Genera la semana actual si todavía no existe ninguna asignación para ella.
 // Así el listado aparece solo, sin depender de que alguien apriete un botón.
-function ensureCurrentWeekGenerated(data, householdId) {
-  const weekStart = currentWeekStart();
+// Si recibe requestedWeekStart >= currentWeekStart(), usa esa semana para generar
+// (cubre el caso de diferencia horaria entre frontend y servidor: si el navegador
+// en Madrid ya está en domingo 08:00+ pero el servidor sigue en sábado, el frontend
+// pide la semana nueva y el servidor la genera aunque su reloj todavía no cambió).
+function ensureCurrentWeekGenerated(data, householdId, requestedWeekStart) {
+  const current = currentWeekStart();
+  const weekStart = (requestedWeekStart && requestedWeekStart >= current) ? requestedWeekStart : current;
   const household = data.households.find(h => h.id === householdId);
   if (!household) return weekStart;
 
@@ -424,11 +429,14 @@ function enrichAssignment(a, tasksById, usersById) {
 app.get('/api/assignments', requireAuth, (req, res) => {
   const requested = req.query.weekStart || currentWeekStart();
 
-  // Autogeneración: si están pidiendo la semana en curso, nos aseguramos de
-  // que ya esté armada, sin depender de ningún botón ni del cron.
+  // Autogeneración: si están pidiendo la semana en curso, o una semana
+  // posterior (puede pasar si el navegador del usuario está en una zona
+  // horaria más adelantada que el servidor), nos aseguramos de que ya
+  // esté armada, sin depender de ningún botón ni del cron.
   let weekStart = requested;
-  if (requested === currentWeekStart()) {
-    weekStart = transaction(d => ensureCurrentWeekGenerated(d, req.session.householdId));
+  const current = currentWeekStart();
+  if (requested === current || requested > current) {
+    weekStart = transaction(d => ensureCurrentWeekGenerated(d, req.session.householdId, requested));
   }
 
   const fresh = load();
