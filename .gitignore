@@ -7,3 +7,4 @@ npm-debug.log*
 coverage/
 __tests__/test-data.json
 flyctl.zip
+.atl/
