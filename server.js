@@ -664,8 +664,10 @@ function weekProposalVoters(proposal, data) {
 }
 
 // Devuelve la versión "pública" de una propuesta lista para el frontend:
-// cuántos aceptaron, cuántos faltan, y los nombres resueltos.
-function publicWeekProposal(proposal, data) {
+// cuántos aceptaron, cuántos faltan, y los nombres resueltos. currentUserId
+// es opcional: si se pasa, se incluye `myDecision` con la respuesta del
+// usuario actual (o null si aún no votó).
+function publicWeekProposal(proposal, data, currentUserId) {
   const voters = weekProposalVoters(proposal, data);
   const respondents = Object.keys(proposal.responses || {});
   const acceptedCount = Object.values(proposal.responses || {}).filter(d => d === 'accept').length;
@@ -685,7 +687,9 @@ function publicWeekProposal(proposal, data) {
     acceptedCount,
     respondedCount: respondents.length,
     allResponded: respondents.length === voters.length,
-    changes
+    changes,
+    // undefined si no se pasa currentUserId; null si el usuario no votó.
+    myDecision: currentUserId ? (proposal.responses || {})[currentUserId] || null : undefined
   };
 }
 
@@ -777,7 +781,7 @@ app.post('/api/week-proposals', requireAuth, (req, res) => {
   if (result.error === 'user_not_found') return res.status(400).json({ error: 'La persona destino tiene que ser parte del hogar.' });
 
   const data = load();
-  res.json({ proposal: publicWeekProposal(result.proposal, data) });
+  res.json({ proposal: publicWeekProposal(result.proposal, data, req.session.userId) });
 });
 
 // Responde una propuesta. El consenso es "todos deben aceptar": la propuesta
@@ -858,7 +862,7 @@ app.post('/api/week-proposals/:id/respond', requireAuth, (req, res) => {
   if (result.error === 'already_responded') return res.status(400).json({ error: 'Ya respondiste esta propuesta.' });
 
   const data = load();
-  res.json({ proposal: publicWeekProposal(result.proposal, data) });
+  res.json({ proposal: publicWeekProposal(result.proposal, data, req.session.userId) });
 });
 
 app.get('/api/week-proposals', requireAuth, (req, res) => {
@@ -866,7 +870,7 @@ app.get('/api/week-proposals', requireAuth, (req, res) => {
   const proposals = (data.weekProposals || [])
     .filter(p => p.householdId === req.session.householdId)
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  res.json({ proposals: proposals.map(p => publicWeekProposal(p, data)) });
+  res.json({ proposals: proposals.map(p => publicWeekProposal(p, data, req.session.userId)) });
 });
 
 // ---------- histórico ----------

@@ -341,6 +341,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .wp-changes { margin: 0 0 4px; padding-left: 18px; font-size: 13px; }
 .wp-changes li { margin-bottom: 2px; }
 .wp-progress { font-size: 12px; margin-top: 4px; }
+.wp-ok { color: #2e7d32; font-weight: 600; }
+.wp-no { color: #b3261e; font-weight: 600; }
+
+/* Banner de propuesta en el dashboard */
+.week-proposal-banner { max-width: 760px; margin: 0 0 16px; }
+.week-proposal-card strong { display: block; margin-bottom: 6px; }
+.wp-respond { margin-top: 8px; }
 
 /* Avatar modal X */
 .modal-x {

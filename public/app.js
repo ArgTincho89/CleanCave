@@ -251,11 +251,21 @@ async function loadNotifications() {
     const isWeekProposalResult = n.type === 'week_proposal_result';
     const wp = proposals[n.weekProposalId];
 
-    // Botones aceptar/rechazar solo si la propuesta sigue pendiente.
-    const canRespond = isWeekProposal && !n.read && wp && wp.status === 'pending';
+    // Botones aceptar/rechazar mientras la propuesta esté pendiente y el
+    // usuario actual no haya votado (y no sea el proponente). NO depende de
+    // si la notificación está leída: la propuesta vive en su propio estado.
+    const isMyProposal = wp && wp.proposedByUserId === (state.me && state.me.user && state.me.user.id);
+    const canRespond = isWeekProposal && wp && wp.status === 'pending' && !wp.myDecision && !isMyProposal;
 
     let detail = '';
     if (isWeekProposal && wp) {
+      // Estado a mostrar: pendiente (con/sin mi voto) o cerrada.
+      let stateLine = '';
+      if (wp.status !== 'pending') {
+        stateLine = `<div class="wp-progress ${wp.status === 'accepted' ? 'wp-ok' : 'wp-no'}">${wp.status === 'accepted' ? 'Aceptada — se aplicó la nueva configuración ✅' : 'Rechazada — la semana queda como estaba ❌'}</div>`;
+      } else if (wp.myDecision) {
+        stateLine = `<div class="wp-progress muted">Ya respondiste (${wp.myDecision === 'accept' ? 'aceptaste' : 'rechazaste'}). Te avisaremos cuando la propuesta se cierre.</div>`;
+      }
       detail = `
         <div class="wp-detail">
           <div class="wp-meta">
@@ -265,6 +275,7 @@ async function loadNotifications() {
             ${wp.changes.map(c => `<li><strong>${c.taskName}</strong> → ${c.toUserName}</li>`).join('')}
           </ul>
           ${wp.acceptedCount > 0 ? `<div class="wp-progress muted">${wp.acceptedCount} de ${wp.totalVoters} aceptaron.</div>` : ''}
+          ${stateLine}
         </div>
       `;
     }
@@ -355,17 +366,13 @@ async function loadConfigureWeek() {
   }
 
   // Si ya hay una propuesta pendiente (de cualquier integrante) para esta
-  // semana, avisamos y deshabilitamos el confirmar para no pisarla.
+  // semana, mostramos el detalle completo con botones de respuesta si el
+  // usuario actual todavía puede votar, y deshabilitamos el confirmar.
   const pendingProposal = proposalsRes.proposals.find(p => p.weekStart === weekStart && p.status === 'pending');
   const confirmBtn = document.getElementById('configure-week-confirm');
   if (pendingProposal) {
-    const votersLeft = pendingProposal.totalVoters - pendingProposal.respondedCount;
-    statusEl.innerHTML = `
-      <div class="configure-preview card">
-        <strong>⏳ Hay una propuesta pendiente de ${pendingProposal.proposedByUserName} para esta semana.</strong>
-        ${votersLeft > 0 ? `<p class="muted">Faltan ${votersLeft} respuesta${votersLeft === 1 ? '' : 's'} para que se decida. Recién después de que se resuelva podés proponer otra.</p>` : ''}
-      </div>
-    `;
+    statusEl.innerHTML = weekProposalCardHtml(pendingProposal);
+    bindWeekProposalActions(statusEl);
     actionsEl.hidden = true;
   } else {
     statusEl.innerHTML = '';
@@ -438,6 +445,50 @@ function updateConfigureWeekSummary() {
   `;
 }
 
+// Muestra el detalle de una propuesta de configuración con su estado y, si
+// el usuario actual todavía puede votar, los botones Aceptar/Rechazar.
+// Devuelve el HTML; los botones se vinculan con bindWeekProposalActions.
+function weekProposalCardHtml(p) {
+  const changesHtml = (p.changes || []).map(c => `<li><strong>${c.taskName}</strong> → ${c.toUserName}</li>`).join('');
+  const votersLeft = p.totalVoters - p.respondedCount;
+  const isMine = p.proposedByUserId === (state.me && state.me.user && state.me.user.id);
+  let stateLine = '';
+  if (p.status !== 'pending') {
+    stateLine = `<div class="wp-progress ${p.status === 'accepted' ? 'wp-ok' : 'wp-no'}">${p.status === 'accepted' ? 'Aceptada — se aplicó la nueva configuración ✅' : 'Rechazada — la semana queda como estaba ❌'}</div>`;
+  } else if (isMine) {
+    stateLine = `<div class="wp-progress muted">Tu propuesta está esperando ${votersLeft} respuesta${votersLeft === 1 ? '' : 's'}.</div>`;
+  } else if (p.myDecision) {
+    stateLine = `<div class="wp-progress muted">Ya respondiste (${p.myDecision === 'accept' ? 'aceptaste' : 'rechazaste'}). Te avisaremos cuando se cierre.</div>`;
+  } else {
+    stateLine = `<div class="wp-progress muted">Faltan ${votersLeft} respuesta${votersLeft === 1 ? '' : 's'} para que se decida.</div>`;
+  }
+  const canRespond = p.status === 'pending' && !p.myDecision && !isMine;
+  return `
+    <div class="configure-preview card week-proposal-card">
+      <strong>${p.proposedByUserName} propuso reasignar ${(p.changes || []).length} tarea${(p.changes || []).length === 1 ? '' : 's'}:</strong>
+      <ul class="wp-changes">${changesHtml}</ul>
+      ${p.acceptedCount > 0 ? `<div class="wp-progress muted">${p.acceptedCount} de ${p.totalVoters} aceptaron.</div>` : ''}
+      ${stateLine}
+      ${canRespond ? `
+        <div class="configure-week-actions wp-respond">
+          <button class="btn primary small wp-accept" data-proposal-id="${p.id}">Aceptar</button>
+          <button class="btn ghost small wp-deny" data-proposal-id="${p.id}">Rechazar</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Vincula los botones Aceptar/Rechazar dentro de un contenedor renderizado.
+function bindWeekProposalActions(rootEl) {
+  rootEl.querySelectorAll('.wp-accept').forEach(b => {
+    b.addEventListener('click', () => respondWeekProposal(b.dataset.proposalId, 'accept'));
+  });
+  rootEl.querySelectorAll('.wp-deny').forEach(b => {
+    b.addEventListener('click', () => respondWeekProposal(b.dataset.proposalId, 'deny'));
+  });
+}
+
 async function confirmConfigureWeek() {
   const errEl = document.getElementById('configure-week-error');
   const okEl = document.getElementById('configure-week-success');
@@ -484,6 +535,9 @@ async function respondWeekProposal(proposalId, decision) {
     await api(`/week-proposals/${proposalId}/respond`, { method: 'POST', body: JSON.stringify({ decision }) });
     await loadNotifications();
     await loadDashboard();
+    // Si el usuario está en la página Configurar semana, refrescarla para
+    // reflejar que ya respondió (o que la propuesta se cerró).
+    if (state.lastActiveNav === 'configure-week') await loadConfigureWeek();
   } catch (err) {
     alert(err.message);
   }
@@ -532,6 +586,8 @@ async function loadDashboard() {
   document.getElementById('week-label').textContent = new Date(actualWeek + 'T00:00:00')
     .toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
 
+  await loadWeekProposalBanner(actualWeek);
+
   const container = document.getElementById('columns');
   container.innerHTML = '';
 
@@ -541,6 +597,26 @@ async function loadDashboard() {
 
   if (me) container.appendChild(renderMyColumn(me));
   others.forEach(o => container.appendChild(renderPartnerColumn(o)));
+}
+
+// Banner en el dashboard para las propuestas de configuración semanal de la
+// semana en curso. Siempre visible mientras exista una propuesta (pendiente o
+// cerrada) para que esté claro dónde aceptar/rechazar; se oculta si no hay.
+async function loadWeekProposalBanner(weekStart) {
+  const banner = document.getElementById('week-proposal-banner');
+  let proposals = [];
+  try {
+    proposals = (await api('/week-proposals')).proposals || [];
+  } catch {}
+  const proposal = proposals.find(p => p.weekStart === weekStart);
+  if (!proposal) {
+    banner.hidden = true;
+    banner.innerHTML = '';
+    return;
+  }
+  banner.innerHTML = weekProposalCardHtml(proposal);
+  bindWeekProposalActions(banner);
+  banner.hidden = false;
 }
 
 function renderMyColumn({ user, tasks }) {

@@ -600,6 +600,45 @@ describe('API', () => {
       expect(res.status).toBe(200);
       expect(res.body.proposals).toHaveLength(1);
     });
+
+    it('GET /api/week-proposals exposes myDecision per viewer', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const assignment = week.all.find(a => a.status === 'pending');
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+      const created = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+      const proposalId = created.body.proposal.id;
+
+      // El proponente (alice) ve la propuesta como propia: myDecision null y proposedByUserId = sí misma.
+      const asAlice = await alice.get('/api/week-proposals');
+      const aliceView = asAlice.body.proposals.find(p => p.id === proposalId);
+      expect(aliceView.myDecision).toBeNull();
+      expect(aliceView.proposedByUserId).toBe(week.currentUserId);
+
+      // El votante (bob) ve myDecision null antes de responder.
+      const bobAgent = request.agent(app);
+      const bobLogin = await bobAgent
+        .post('/api/auth/login')
+        .send({ username: 'bob', password: 'pass456' });
+      expect(bobLogin.status).toBe(200);
+      const asBob = await bobAgent.get('/api/week-proposals');
+      const bobView = asBob.body.proposals.find(p => p.id === proposalId);
+      expect(bobView.myDecision).toBeNull();
+      // El proponente sigue siendo alice (week.currentUserId), no bob.
+      expect(bobView.proposedByUserId).toBe(week.currentUserId);
+      expect(bobView.proposedByUserId).not.toBe(bobId);
+
+      // Tras aceptar, myDecision refleja el voto de bob.
+      await bobAgent
+        .post(`/api/week-proposals/${proposalId}/respond`)
+        .send({ decision: 'accept' });
+      const after = await bobAgent.get('/api/week-proposals');
+      const bobAfter = after.body.proposals.find(p => p.id === proposalId);
+      expect(bobAfter.myDecision).toBe('accept');
+      expect(bobAfter.status).toBe('accepted');
+    });
   });
 
   describe('Notifications (authenticated)', () => {
