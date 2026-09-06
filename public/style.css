@@ -323,10 +323,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   padding: 12px 14px; background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius);
 }
-.configure-task-row .ctr-task { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.configure-task-row .ctr-name { font-size: 14px; font-weight: 600; }
+.configure-task-row .ctr-task { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.configure-task-row .ctr-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .configure-task-row .ctr-freq { font-size: 12px; color: var(--muted); }
-.configure-task-select { min-width: 140px; }
+.configure-task-select { min-width: 140px; flex-shrink: 0; }
 .configure-week-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: 640px; }
 .configure-week-actions .error, .configure-week-actions .success { width: 100%; }
 .configure-status { margin-bottom: 16px; max-width: 640px; }
@@ -413,8 +413,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   .gti-actions .btn { min-width: 70px; }
   #form-new-global-task { flex-direction: column; }
   #form-new-global-task input[type="text"], #form-new-global-task textarea { min-width: 100%; }
-  .configure-task-row { flex-direction: column; align-items: flex-start; gap: 8px; }
-  .configure-task-select { min-width: 100%; }
+  .configure-task-row { gap: 8px; }
+  .configure-task-select { min-width: 120px; }
   .configure-week-actions { flex-direction: column; align-items: stretch; }
   .configure-week-actions .btn { width: 100%; }
 }
