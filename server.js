@@ -1065,6 +1065,49 @@ app.get('/api/global-tasks/history', requireAuth, (req, res) => {
   res.json({ history });
 });
 
+// ---------- lista de compra ----------
+
+app.get('/api/shopping-items', requireAuth, (req, res) => {
+  const data = load();
+  const items = (data.shoppingItems || [])
+    .filter(i => i.householdId === req.session.householdId)
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+  res.json({ items });
+});
+
+app.post('/api/shopping-items', requireAuth, (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Falta el nombre del artículo.' });
+  if (name.trim().length > 100) return res.status(400).json({ error: 'El nombre no puede tener más de 100 caracteres.' });
+  const item = transaction(data => {
+    const user = data.users.find(u => u.id === req.session.userId);
+    const i = {
+      id: randomUUID(),
+      householdId: req.session.householdId,
+      name: name.trim(),
+      createdByUserId: req.session.userId,
+      createdByUserName: user ? user.name : '',
+      createdAt: new Date().toISOString()
+    };
+    data.shoppingItems = data.shoppingItems || [];
+    data.shoppingItems.push(i);
+    return i;
+  });
+  res.json({ item });
+});
+
+app.delete('/api/shopping-items/:id', requireAuth, (req, res) => {
+  const ok = transaction(data => {
+    if (!data.shoppingItems) return false;
+    const idx = data.shoppingItems.findIndex(i => i.id === req.params.id && i.householdId === req.session.householdId);
+    if (idx === -1) return false;
+    data.shoppingItems.splice(idx, 1);
+    return true;
+  });
+  if (!ok) return res.status(404).json({ error: 'Artículo no encontrado.' });
+  res.json({ ok: true });
+});
+
 // ---------- cron: generación automática semanal ----------
 // Se ejecuta los domingos a las 8:00 (timezone configurable vía TIMEZONE,
 // default America/Argentina/Buenos_Aires) y genera la lista para todos los

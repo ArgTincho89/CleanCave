@@ -1421,4 +1421,134 @@ describe('API', () => {
       expect(res.body.tasks).toHaveLength(0);
     });
   });
+
+  describe('Shopping list', () => {
+    function authedAgent() {
+      const agent = request.agent(app);
+      return createHousehold(agent).then(() => agent);
+    }
+
+    it('GET /api/shopping-items should require auth', async () => {
+      const res = await request(app).get('/api/shopping-items');
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /api/shopping-items should require auth', async () => {
+      const res = await request(app)
+        .post('/api/shopping-items')
+        .send({ name: 'Leche' });
+      expect(res.status).toBe(401);
+    });
+
+    it('DELETE /api/shopping-items/:id should require auth', async () => {
+      const res = await request(app).delete('/api/shopping-items/some-id');
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /api/shopping-items should return empty list initially', async () => {
+      const agent = await authedAgent();
+      const res = await agent.get('/api/shopping-items');
+      expect(res.status).toBe(200);
+      expect(res.body.items).toEqual([]);
+    });
+
+    it('POST /api/shopping-items should reject missing name', async () => {
+      const agent = await authedAgent();
+      const res = await agent.post('/api/shopping-items').send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('nombre');
+    });
+
+    it('POST /api/shopping-items should reject blank/whitespace name', async () => {
+      const agent = await authedAgent();
+      const res = await agent.post('/api/shopping-items').send({ name: '   ' });
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/shopping-items should reject name over 100 chars', async () => {
+      const agent = await authedAgent();
+      const res = await agent.post('/api/shopping-items').send({ name: 'x'.repeat(101) });
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/shopping-items should create an item and trim the name', async () => {
+      const agent = await authedAgent();
+      const res = await agent.post('/api/shopping-items').send({ name: '  Leche  ' });
+      expect(res.status).toBe(200);
+      expect(res.body.item.name).toBe('Leche');
+      expect(res.body.item.householdId).toBeDefined();
+      expect(res.body.item.createdByUserId).toBeDefined();
+      expect(res.body.item.createdAt).toBeDefined();
+    });
+
+    it('GET /api/shopping-items should return created items in insertion order', async () => {
+      const agent = await authedAgent();
+      await agent.post('/api/shopping-items').send({ name: 'Leche' });
+      await agent.post('/api/shopping-items').send({ name: 'Pan' });
+      const res = await agent.get('/api/shopping-items');
+      expect(res.status).toBe(200);
+      expect(res.body.items).toHaveLength(2);
+      expect(res.body.items[0].name).toBe('Leche');
+      expect(res.body.items[1].name).toBe('Pan');
+    });
+
+    it('should not see other household shopping items', async () => {
+      const agent1 = request.agent(app);
+      await createHousehold(agent1);
+      await agent1.post('/api/shopping-items').send({ name: 'Household 1 item' });
+
+      const agent2 = request.agent(app);
+      await agent2
+        .post('/api/auth/register-household')
+        .send({
+          householdName: 'Other Home',
+          members: [
+            { name: 'Charlie', username: 'charlie', password: 'pass' },
+            { name: 'Diana', username: 'diana', password: 'pass' }
+          ]
+        });
+
+      const res = await agent2.get('/api/shopping-items');
+      expect(res.body.items).toHaveLength(0);
+    });
+
+    it('should not delete other household shopping item', async () => {
+      const agent1 = request.agent(app);
+      await createHousehold(agent1);
+      const created = await agent1.post('/api/shopping-items').send({ name: 'Household 1 item' });
+      const itemId = created.body.item.id;
+
+      const agent2 = request.agent(app);
+      await agent2
+        .post('/api/auth/register-household')
+        .send({
+          householdName: 'Other Home',
+          members: [
+            { name: 'Charlie', username: 'charlie', password: 'pass' },
+            { name: 'Diana', username: 'diana', password: 'pass' }
+          ]
+        });
+
+      const res = await agent2.delete('/api/shopping-items/' + itemId);
+      expect(res.status).toBe(404);
+    });
+
+    it('DELETE /api/shopping-items/:id should remove an item', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/shopping-items').send({ name: 'Delete me' });
+      const itemId = created.body.item.id;
+
+      const res = await agent.delete('/api/shopping-items/' + itemId);
+      expect(res.status).toBe(200);
+
+      const list = await agent.get('/api/shopping-items');
+      expect(list.body.items).toHaveLength(0);
+    });
+
+    it('DELETE /api/shopping-items/:id should return 404 for non-existent', async () => {
+      const agent = await authedAgent();
+      const res = await agent.delete('/api/shopping-items/nonexistent');
+      expect(res.status).toBe(404);
+    });
+  });
 });

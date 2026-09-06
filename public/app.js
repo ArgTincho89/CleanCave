@@ -131,6 +131,7 @@ function showPage(pageId, navBtnPage) {
   }
   if (pageId === 'tasks') loadTasks();
   if (pageId === 'global-tasks') { loadGlobalTasks(); loadGlobalTasksHistory(); }
+  if (pageId === 'shopping-list') loadShoppingList();
   if (pageId === 'history') loadHistoryWeeks();
   if (pageId === 'stats') loadStats();
   if (pageId === 'configure-week') loadConfigureWeek();
@@ -1478,6 +1479,55 @@ document.getElementById('edit-global-task-save').addEventListener('click', async
     });
     editGlobalTaskModal.hidden = true;
     await loadGlobalTasks();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+});
+
+// ---------------- Lista de compra ----------------
+
+async function loadShoppingList() {
+  const { items } = await api('/shopping-items');
+  const container = document.getElementById('shopping-items-list');
+  if (!container) return;
+  if (items.length === 0) {
+    container.innerHTML = '<div class="empty-state">No hay artículos. ¡Sumá lo que falta comprar!</div>';
+    return;
+  }
+  container.innerHTML = items.map(i => `
+    <div class="global-task-item">
+      <div class="gti-body">
+        <div class="gti-name">${i.name}</div>
+      </div>
+      <div class="gti-actions">
+        <button class="btn danger small delete-shopping-item" data-id="${i.id}">Eliminar</button>
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.delete-shopping-item').forEach(b => {
+    b.addEventListener('click', async () => {
+      try {
+        await api('/shopping-items/' + b.dataset.id, { method: 'DELETE' });
+        await loadShoppingList();
+      } catch (err) {
+        document.getElementById('shopping-error').textContent = err.message;
+      }
+    });
+  });
+}
+
+document.getElementById('form-new-shopping-item').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errEl = document.getElementById('shopping-error');
+  errEl.textContent = '';
+  const input = document.getElementById('new-shopping-item-name');
+  const name = input.value.trim();
+  if (!name) { errEl.textContent = 'Escribí el artículo que falta comprar.'; return; }
+  try {
+    await api('/shopping-items', { method: 'POST', body: JSON.stringify({ name }) });
+    input.value = '';
+    await loadShoppingList();
   } catch (err) {
     errEl.textContent = err.message;
   }

@@ -316,6 +316,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 }
 .gti-actions .btn { min-width: 80px; text-align: center; }
 
+/* Lista de compra */
+#form-new-shopping-item input[type="text"] { flex: 1; min-width: 180px; }
+
 /* Configurar semana */
 .configure-week-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; max-width: 640px; }
 .configure-task-row {
@@ -420,6 +423,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   .gti-actions .btn { min-width: 70px; }
   #form-new-global-task { flex-direction: column; }
   #form-new-global-task input[type="text"], #form-new-global-task textarea { min-width: 100%; }
+  #form-new-shopping-item { flex-direction: column; }
+  #form-new-shopping-item input[type="text"] { min-width: 100%; }
   .configure-task-row { gap: 8px; }
   .configure-task-select { min-width: 120px; }
   .configure-week-actions { flex-direction: column; align-items: stretch; }

@@ -106,6 +106,7 @@
       <button class="nav-btn" data-page="configure-week">Configurar semana</button>
       <button class="nav-btn" data-page="tasks">Configurar tareas</button>
       <button class="nav-btn" data-page="global-tasks">Tareas globales</button>
+      <button class="nav-btn" data-page="shopping-list">Lista compra</button>
       <button class="nav-btn" data-page="history">Histórico</button>
       <button class="nav-btn" data-page="stats">Estadísticas</button>
       <button class="nav-btn" data-page="profile">Perfil</button>
@@ -258,6 +259,24 @@
         <summary style="cursor:pointer;font-size:14px;font-weight:600;color:var(--muted);padding:8px 0;">Histórico tareas globales</summary>
         <div id="global-tasks-history-content" style="padding-top:8px;font-size:13px;"></div>
       </details>
+    </main>
+
+    <!-- -------- LISTA DE COMPRA -------- -->
+    <main id="page-shopping-list" class="page">
+      <div class="dashboard-header">
+        <div>
+          <h2>Lista de compra</h2>
+          <p class="muted">Artículos que faltan comprar para el hogar. Agregá lo que haga falta y sacalo cuando lo lleves.</p>
+        </div>
+      </div>
+
+      <form id="form-new-shopping-item" class="new-task-form card">
+        <input type="text" id="new-shopping-item-name" placeholder="¿Qué falta comprar?" required>
+        <button type="submit" class="btn primary">+ Agregar</button>
+      </form>
+      <p class="error" id="shopping-error"></p>
+
+      <div id="shopping-items-list"></div>
     </main>
   </div>
 
