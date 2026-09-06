@@ -392,6 +392,216 @@ describe('API', () => {
     });
   });
 
+  describe('Week proposals (authenticated)', () => {
+    // Crea el hogar con Alice/Bob, una tarea y la semana generada. Devuelve
+    // un agente autenticado como Alice.
+    function aliceAgentWithWeek() {
+      const agent = request.agent(app);
+      return createHousehold(agent)
+        .then(() => agent.post('/api/tasks').send({ name: 'Vacuum', frequencyLabel: 'Semanal' }))
+        .then(() => agent.post('/api/assignments/generate'))
+        .then(() => agent);
+    }
+
+    // En loguea como Bob dentro del mismo hogar (mismo TEST_DB).
+    async function bobAgent() {
+      const agent = request.agent(app);
+      await agent.post('/api/auth/login').send({ username: 'bob', password: 'pass456' });
+      return agent;
+    }
+
+    function weekOf(agent) {
+      return agent.get('/api/assignments').then(r => r.body);
+    }
+
+    it('POST /api/week-proposals should create a proposal and notify the partner', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      // Tomamos una tarea pendiente asignada a Alice y la reasignamos a Bob.
+      const assignment = week.all.find(a => a.status === 'pending');
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+
+      const res = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+      expect(res.status).toBe(200);
+      expect(res.body.proposal.status).toBe('pending');
+      expect(res.body.proposal.changes).toHaveLength(1);
+      expect(res.body.proposal.changes[0].toUserId).toBe(bobId);
+
+      // Bob recibe una notificación de tipo week_proposal.
+      const bob = await bobAgent();
+      const notifs = await bob.get('/api/notifications');
+      const wp = notifs.body.notifications.find(n => n.type === 'week_proposal');
+      expect(wp).toBeDefined();
+      expect(wp.weekProposalId).toBe(res.body.proposal.id);
+    });
+
+    it('POST /api/week-proposals should reject a non-existent assignment', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+      const res = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: 'nope', toUserId: bobId }] });
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/week-proposals should reject a toUser that is not a member', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const assignment = week.all.find(a => a.status === 'pending');
+      const res = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: 'stranger' }] });
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/week-proposals should reject a completed assignment', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+      const assignment = week.all.find(a => a.status === 'pending');
+      await alice.post(`/api/assignments/${assignment.id}/complete`);
+
+      const res = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('completada');
+    });
+
+    it('POST /api/week-proposals should reject a second pending proposal for the same week', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const assignment = week.all.find(a => a.status === 'pending');
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+      await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+
+      const res = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('pendiente');
+    });
+
+    it('POST /api/week-proposals/:id/respond should apply only when all accept', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const assignment = week.all.find(a => a.status === 'pending');
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+
+      const created = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+      const proposalId = created.body.proposal.id;
+
+      // Bob acepta: todavía falta que el hogar complete (Alice no puede
+      // responder a su propia propuesta, y es el único otro miembro).
+      const bob = await bobAgent();
+      const resp = await bob.post(`/api/week-proposals/${proposalId}/respond`).send({ decision: 'accept' });
+      expect(resp.status).toBe(200);
+
+      // Con 2 miembros, Bob es el único que responde (Alice propuso), así que
+      // el consenso se completa y se aplica.
+      expect(resp.body.proposal.status).toBe('accepted');
+
+      // La asignación ahora está a nombre de Bob.
+      const updated = await alice.get('/api/assignments?weekStart=' + week.weekStart);
+      const updatedAssignment = updated.body.all.find(a => a.id === assignment.id);
+      expect(updatedAssignment.assignedToUserId).toBe(bobId);
+    });
+
+    it('POST /api/week-proposals/:id/respond with deny discards and leaves week unchanged', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const assignment = week.all.find(a => a.status === 'pending');
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+
+      const created = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+
+      const bob = await bobAgent();
+      const resp = await bob.post(`/api/week-proposals/${created.body.proposal.id}/respond`).send({ decision: 'deny' });
+      expect(resp.status).toBe(200);
+      expect(resp.body.proposal.status).toBe('denied');
+
+      // La asignación queda como estaba (seguía a nombre de quien la tenía).
+      const updated = await alice.get('/api/assignments?weekStart=' + week.weekStart);
+      const updatedAssignment = updated.body.all.find(a => a.id === assignment.id);
+      expect(updatedAssignment.assignedToUserId).toBe(assignment.assignedToUserId);
+    });
+
+    it('POST /api/week-proposals/:id/respond should reject own proposal', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const assignment = week.all.find(a => a.status === 'pending');
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+
+      const created = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+
+      const res = await alice.post(`/api/week-proposals/${created.body.proposal.id}/respond`).send({ decision: 'accept' });
+      expect(res.status).toBe(403);
+    });
+
+    it('POST /api/week-proposals/:id/respond should reject double response', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const assignment = week.all.find(a => a.status === 'pending');
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+
+      const created = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+
+      const bob = await bobAgent();
+      await bob.post(`/api/week-proposals/${created.body.proposal.id}/respond`).send({ decision: 'accept' });
+      // La propuesta ya se cerró (consenso completo), responder de nuevo falla.
+      const res = await bob.post(`/api/week-proposals/${created.body.proposal.id}/respond`).send({ decision: 'deny' });
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /api/week-proposals/:id/respond should notify the result to everyone', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const assignment = week.all.find(a => a.status === 'pending');
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+
+      const created = await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+
+      const bob = await bobAgent();
+      await bob.post(`/api/week-proposals/${created.body.proposal.id}/respond`).send({ decision: 'accept' });
+
+      // Bob (que respondió) y Alice (que propuso) reciben la notificación de resultado.
+      const bobNotifs = await bob.get('/api/notifications');
+      expect(bobNotifs.body.notifications.some(n => n.type === 'week_proposal_result')).toBe(true);
+
+      const aliceNotifs = await alice.get('/api/notifications');
+      expect(aliceNotifs.body.notifications.some(n => n.type === 'week_proposal_result')).toBe(true);
+    });
+
+    it('GET /api/week-proposals should list proposals', async () => {
+      const alice = await aliceAgentWithWeek();
+      const week = await weekOf(alice);
+      const assignment = week.all.find(a => a.status === 'pending');
+      const bobId = Object.keys(week.byUser).find(id => id !== week.currentUserId);
+      await alice
+        .post('/api/week-proposals')
+        .send({ weekStart: week.weekStart, changes: [{ assignmentId: assignment.id, toUserId: bobId }] });
+
+      const res = await alice.get('/api/week-proposals');
+      expect(res.status).toBe(200);
+      expect(res.body.proposals).toHaveLength(1);
+    });
+  });
+
   describe('Notifications (authenticated)', () => {
     function authedAgent() {
       const agent = request.agent(app);
@@ -532,6 +742,261 @@ describe('API', () => {
         .post('/api/tasks/' + taskId + '/set-last-completed')
         .send({ userId: 'u1' });
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('Pin task to user (authenticated)', () => {
+    function setupWithTask() {
+      const agent = request.agent(app);
+      return createHousehold(agent)
+        .then(() => agent.post('/api/tasks').send({ name: 'Pinned Task', frequencyLabel: 'Semanal' }))
+        .then(() => agent);
+    }
+
+    async function memberIds(agent) {
+      const me = await agent.get('/api/me');
+      const other = me.body.members.find(m => m.id !== me.body.user.id);
+      return { currentUserId: me.body.user.id, otherId: other.id };
+    }
+
+    it('PUT /api/tasks/:id/pin should set pin fields and move the current-week assignment to the pinned user', async () => {
+      const agent = await setupWithTask();
+      const taskId = (await agent.get('/api/tasks')).body.tasks[0].id;
+      const weekRes = await agent.get('/api/assignments');
+      const currentWeek = weekRes.body.weekStart;
+      const { otherId } = await memberIds(agent);
+
+      // Before the pin the task is with the low-load current user (not the pinned one).
+      const beforeRow = weekRes.body.all.find(a => a.taskId === taskId);
+      expect(beforeRow.assignedToUserId).not.toBe(otherId);
+
+      const res = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: otherId, pinnedFromWeek: currentWeek, pinnedToWeek: currentWeek });
+      expect(res.status).toBe(200);
+      expect(res.body.task.pinnedToUserId).toBe(otherId);
+      expect(res.body.task.pinnedFromWeek).toBe(currentWeek);
+      expect(res.body.task.pinnedToWeek).toBe(currentWeek);
+
+      const after = await agent.get('/api/assignments');
+      const afterRow = after.body.all.find(a => a.taskId === taskId);
+      expect(afterRow.assignedToUserId).toBe(otherId);
+    });
+
+    it('PUT /api/tasks/:id/pin should clear pin fields without regenerating the current week', async () => {
+      const agent = await setupWithTask();
+      const taskId = (await agent.get('/api/tasks')).body.tasks[0].id;
+      const weekRes = await agent.get('/api/assignments');
+      const currentWeek = weekRes.body.weekStart;
+      const { otherId } = await memberIds(agent);
+
+      const pin = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: otherId, pinnedFromWeek: currentWeek, pinnedToWeek: currentWeek });
+      expect(pin.status).toBe(200);
+      const pinnedRowId = (await agent.get('/api/assignments')).body.all.find(a => a.taskId === taskId).id;
+
+      const res = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: null });
+      expect(res.status).toBe(200);
+      expect(res.body.task.pinnedToUserId).toBeNull();
+      expect(res.body.task.pinnedFromWeek).toBeNull();
+      expect(res.body.task.pinnedToWeek).toBeNull();
+
+      // No regeneration: same row, still with the pinned user, no duplicates.
+      const after = await agent.get('/api/assignments');
+      const rows = after.body.all.filter(a => a.taskId === taskId && a.weekStart === after.body.weekStart);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].id).toBe(pinnedRowId);
+      expect(rows[0].assignedToUserId).toBe(otherId);
+    });
+
+    it('PUT /api/tasks/:id/pin should be idempotent when set twice', async () => {
+      const agent = await setupWithTask();
+      const taskId = (await agent.get('/api/tasks')).body.tasks[0].id;
+      const weekRes = await agent.get('/api/assignments');
+      const currentWeek = weekRes.body.weekStart;
+      const { otherId } = await memberIds(agent);
+
+      const body = { pinnedToUserId: otherId, pinnedFromWeek: currentWeek, pinnedToWeek: currentWeek };
+      const first = await agent.put('/api/tasks/' + taskId + '/pin').send(body);
+      expect(first.status).toBe(200);
+      const second = await agent.put('/api/tasks/' + taskId + '/pin').send(body);
+      expect(second.status).toBe(200);
+
+      const after = await agent.get('/api/assignments');
+      const rows = after.body.all.filter(a => a.taskId === taskId && a.weekStart === after.body.weekStart);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].assignedToUserId).toBe(otherId);
+    });
+
+    it('PUT /api/tasks/:id/pin should return 400 when fromWeek is in the past', async () => {
+      const agent = await setupWithTask();
+      const taskId = (await agent.get('/api/tasks')).body.tasks[0].id;
+      const weekRes = await agent.get('/api/assignments');
+      const currentWeek = weekRes.body.weekStart;
+      const { otherId } = await memberIds(agent);
+
+      const res = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: otherId, pinnedFromWeek: addDays(currentWeek, -7), pinnedToWeek: currentWeek });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('La semana de inicio no puede ser anterior a la actual.');
+
+      // No pin fields written on rejection.
+      const tasks = await agent.get('/api/tasks');
+      expect(tasks.body.tasks[0].pinnedToUserId).toBeUndefined();
+    });
+
+    it('PUT /api/tasks/:id/pin should return 400 when toWeek is before fromWeek', async () => {
+      const agent = await setupWithTask();
+      const taskId = (await agent.get('/api/tasks')).body.tasks[0].id;
+      const weekRes = await agent.get('/api/assignments');
+      const currentWeek = weekRes.body.weekStart;
+      const { otherId } = await memberIds(agent);
+
+      const res = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: otherId, pinnedFromWeek: currentWeek, pinnedToWeek: addDays(currentWeek, -7) });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('La semana final no puede ser anterior a la inicial.');
+    });
+
+    it('PUT /api/tasks/:id/pin should return 400 when the user is not a household member', async () => {
+      const agent = await setupWithTask();
+      const taskId = (await agent.get('/api/tasks')).body.tasks[0].id;
+      const weekRes = await agent.get('/api/assignments');
+      const currentWeek = weekRes.body.weekStart;
+
+      const res = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: 'not-a-member', pinnedFromWeek: currentWeek, pinnedToWeek: currentWeek });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('La persona tiene que ser parte del hogar.');
+    });
+
+    it('PUT /api/tasks/:id/pin should return 400 when week fields are missing', async () => {
+      const agent = await setupWithTask();
+      const taskId = (await agent.get('/api/tasks')).body.tasks[0].id;
+      const { otherId } = await memberIds(agent);
+
+      const res = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: otherId });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Fechas inválidas.');
+    });
+
+    it('PUT /api/tasks/:id/pin should return 400 for malformed week format', async () => {
+      const agent = await setupWithTask();
+      const taskId = (await agent.get('/api/tasks')).body.tasks[0].id;
+      const weekRes = await agent.get('/api/assignments');
+      const { otherId } = await memberIds(agent);
+
+      const res = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: otherId, pinnedFromWeek: 'not-a-date', pinnedToWeek: weekRes.body.weekStart });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Fechas inválidas.');
+    });
+
+    it('PUT /api/tasks/:id/pin should return 404 for a missing task', async () => {
+      const agent = await setupWithTask();
+      const weekRes = await agent.get('/api/assignments');
+      const { otherId } = await memberIds(agent);
+
+      const res = await agent
+        .put('/api/tasks/nonexistent/pin')
+        .send({ pinnedToUserId: otherId, pinnedFromWeek: weekRes.body.weekStart, pinnedToWeek: weekRes.body.weekStart });
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tarea no encontrada.');
+    });
+
+    it('PUT /api/tasks/:id/pin should return 404 for a task from another household', async () => {
+      const agent1 = request.agent(app);
+      await createHousehold(agent1);
+      const created = await agent1.post('/api/tasks').send({ name: 'Private Task', frequencyLabel: 'Semanal' });
+      const taskId = created.body.task.id;
+      const week1 = await agent1.get('/api/assignments');
+      const me1 = await agent1.get('/api/me');
+      const otherId1 = me1.body.members.find(m => m.id !== me1.body.user.id).id;
+
+      const agent2 = request.agent(app);
+      await agent2
+        .post('/api/auth/register-household')
+        .send({
+          householdName: 'Other Home',
+          members: [
+            { name: 'Charlie', username: 'charlie', password: 'pass' },
+            { name: 'Diana', username: 'diana', password: 'pass' }
+          ]
+        });
+
+      const res = await agent2
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: otherId1, pinnedFromWeek: week1.body.weekStart, pinnedToWeek: week1.body.weekStart });
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Tarea no encontrada.');
+    });
+
+    it('PUT /api/tasks/:id/pin should reassign an overdue carried assignment to the pinned user', async () => {
+      const agent = request.agent(app);
+      await createHousehold(agent);
+      // No tasks yet: learn the server week without generating any assignment rows.
+      const weekRes = await agent.get('/api/assignments');
+      const currentWeek = weekRes.body.weekStart;
+      const { otherId } = await memberIds(agent);
+
+      const created = await agent.post('/api/tasks').send({ name: 'Carry Task', frequencyLabel: 'Semanal' });
+      const taskId = created.body.task.id;
+
+      // Overdue pending row in the past week, left uncompleted.
+      const pastWeek = addDays(currentWeek, -7);
+      await agent.post('/api/assignments/generate').send({ weekStart: pastWeek });
+      const histBefore = await agent.get('/api/history?weekStart=' + pastWeek);
+      const pastRow = Object.values(histBefore.body.byUser).flatMap(u => u.tasks).find(a => a.taskId === taskId);
+      expect(pastRow.status).toBe('pending');
+      expect(pastRow.assignedToUserId).not.toBe(otherId);
+
+      const pinRes = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: otherId, pinnedFromWeek: currentWeek, pinnedToWeek: currentWeek });
+      expect(pinRes.status).toBe(200);
+
+      // Current week: pin wins over carry-over -> assigned to the pinned user.
+      const cur = await agent.get('/api/assignments');
+      const curRow = cur.body.all.find(a => a.taskId === taskId);
+      expect(curRow.assignedToUserId).toBe(otherId);
+
+      // Past week: original row is preserved as carried.
+      const histAfter = await agent.get('/api/history?weekStart=' + pastWeek);
+      const pastRowAfter = Object.values(histAfter.body.byUser).flatMap(u => u.tasks).find(a => a.taskId === taskId);
+      expect(pastRowAfter.status).toBe('carried');
+    });
+
+    it('PUT /api/tasks/:id/pin should not modify a done row for the current week', async () => {
+      const agent = await setupWithTask();
+      const taskId = (await agent.get('/api/tasks')).body.tasks[0].id;
+      const weekRes = await agent.get('/api/assignments');
+      const currentWeek = weekRes.body.weekStart;
+      const { otherId } = await memberIds(agent);
+
+      const row = weekRes.body.all.find(a => a.taskId === taskId);
+      const complete = await agent.post('/api/assignments/' + row.id + '/complete');
+      expect(complete.status).toBe(200);
+
+      const res = await agent
+        .put('/api/tasks/' + taskId + '/pin')
+        .send({ pinnedToUserId: otherId, pinnedFromWeek: currentWeek, pinnedToWeek: currentWeek });
+      expect(res.status).toBe(200);
+
+      const after = await agent.get('/api/assignments');
+      const rows = after.body.all.filter(a => a.taskId === taskId && a.weekStart === after.body.weekStart);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].id).toBe(row.id);
+      expect(rows[0].status).toBe('done');
+      expect(rows[0].assignedToUserId).toBe(row.assignedToUserId);
     });
   });
 

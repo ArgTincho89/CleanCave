@@ -1,4 +1,4 @@
-const state = { me: null, currentWeekStart: null, weekData: null, swapContext: null, pendingComplete: null, lastActiveNav: 'dashboard', globalTasks: [] };
+const state = { me: null, currentWeekStart: null, weekData: null, swapContext: null, pendingComplete: null, lastActiveNav: 'dashboard', globalTasks: [], configureWeek: { assignments: [], pendingChanges: {} } };
 
 const AVATAR_COLORS = ['#c1652f', '#6f8f6a', '#7a6bb5', '#c14b4b', '#3f7a9e'];
 const CHART_COLORS = ['#c1652f', '#6f8f6a', '#7a6bb5', '#c14b4b', '#3f7a9e', '#e0a458', '#4a8f8b', '#a45c8c'];
@@ -133,6 +133,7 @@ function showPage(pageId, navBtnPage) {
   if (pageId === 'global-tasks') { loadGlobalTasks(); loadGlobalTasksHistory(); }
   if (pageId === 'history') loadHistoryWeeks();
   if (pageId === 'stats') loadStats();
+  if (pageId === 'configure-week') loadConfigureWeek();
   if (pageId === 'profile' && state.me) {
     setAvatarEl('profile-page-avatar', state.me.user, 'large');
     document.getElementById('recovery-email').value = state.me.user.recoveryEmail || '';
@@ -230,6 +231,14 @@ async function loadNotifications() {
   const unread = notifications.filter(n => !n.read);
   document.getElementById('notif-dot').hidden = unread.length === 0;
 
+  // Cargamos las propuestas semanas para poder mostrar el detalle de los
+  // cambios en las notificaciones de tipo week_proposal.
+  let proposals = {};
+  try {
+    const res = await api('/week-proposals');
+    res.proposals.forEach(p => { proposals[p.id] = p; });
+  } catch {}
+
   const panel = document.getElementById('notifications-panel');
   if (notifications.length === 0) {
     panel.innerHTML = '<div class="empty-state">Todavía no hay notificaciones.</div>';
@@ -238,17 +247,46 @@ async function loadNotifications() {
 
   panel.innerHTML = notifications.map(n => {
     const showSwapActions = n.type === 'swap_request' && !n.read;
+    const isWeekProposal = n.type === 'week_proposal';
+    const isWeekProposalResult = n.type === 'week_proposal_result';
+    const wp = proposals[n.weekProposalId];
+
+    // Botones aceptar/rechazar solo si la propuesta sigue pendiente.
+    const canRespond = isWeekProposal && !n.read && wp && wp.status === 'pending';
+
+    let detail = '';
+    if (isWeekProposal && wp) {
+      detail = `
+        <div class="wp-detail">
+          <div class="wp-meta">
+            <strong>${wp.proposedByUserName}</strong> propuso reasignar ${wp.changes.length} tarea${wp.changes.length === 1 ? '' : 's'}:
+          </div>
+          <ul class="wp-changes">
+            ${wp.changes.map(c => `<li><strong>${c.taskName}</strong> → ${c.toUserName}</li>`).join('')}
+          </ul>
+          ${wp.acceptedCount > 0 ? `<div class="wp-progress muted">${wp.acceptedCount} de ${wp.totalVoters} aceptaron.</div>` : ''}
+        </div>
+      `;
+    }
+
     return `
-      <div class="notif-item">
+      <div class="notif-item${isWeekProposal ? ' week-proposal-notif' : ''}">
         <div class="notif-top">
           <span>${n.read ? '' : '🔵 '}${n.message}</span>
           ${n.read ? '' : `<button data-id="${n.id}" class="mark-read">Marcar leída</button>`}
         </div>
+        ${detail}
         ${showSwapActions ? `
           <div class="notif-actions" data-swap-id="${n.swapRequestId}">
             <input type="text" class="swap-response-msg" placeholder="Mensaje de respuesta (opcional)">
             <button class="btn primary small swap-accept">Aceptar</button>
             <button class="btn ghost small swap-deny">Rechazar</button>
+          </div>
+        ` : ''}
+        ${canRespond ? `
+          <div class="notif-actions" data-proposal-id="${wp.id}">
+            <button class="btn primary small wp-accept">Aceptar</button>
+            <button class="btn ghost small wp-deny">Rechazar</button>
           </div>
         ` : ''}
       </div>
@@ -263,16 +301,187 @@ async function loadNotifications() {
   });
 
   panel.querySelectorAll('.notif-actions').forEach(box => {
-    const swapId = box.dataset.swapId;
-    const input = box.querySelector('.swap-response-msg');
-    box.querySelector('.swap-accept').addEventListener('click', () => respondSwap(swapId, 'accept', input.value));
-    box.querySelector('.swap-deny').addEventListener('click', () => respondSwap(swapId, 'deny', input.value));
+    if (box.dataset.swapId) {
+      const swapId = box.dataset.swapId;
+      const input = box.querySelector('.swap-response-msg');
+      box.querySelector('.swap-accept').addEventListener('click', () => respondSwap(swapId, 'accept', input.value));
+      box.querySelector('.swap-deny').addEventListener('click', () => respondSwap(swapId, 'deny', input.value));
+    } else if (box.dataset.proposalId) {
+      const proposalId = box.dataset.proposalId;
+      box.querySelector('.wp-accept').addEventListener('click', () => respondWeekProposal(proposalId, 'accept'));
+      box.querySelector('.wp-deny').addEventListener('click', () => respondWeekProposal(proposalId, 'deny'));
+    }
   });
 }
 
 async function respondSwap(swapId, decision, responseMessage) {
   try {
     await api(`/swaps/${swapId}/respond`, { method: 'POST', body: JSON.stringify({ decision, responseMessage }) });
+    await loadNotifications();
+    await loadDashboard();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// ---------------- Configurar semana ----------------
+
+// Carga las tareas de la semana en curso con sus personas asignadas, para
+// poder modificar manualmente el reparto. No aplica cambios: solo recolecta
+// la configuración y la muestra.
+async function loadConfigureWeek() {
+  const weekStart = thisWeekStart();
+  const [assignRes, proposalsRes] = await Promise.all([
+    api('/assignments?weekStart=' + weekStart),
+    api('/week-proposals').catch(() => ({ proposals: [] }))
+  ]);
+  const { all, currentUserId, byUser } = assignRes;
+
+  const members = state.me.members;
+  // Solo las tareas pendientes (una tarea ya hecha no se reasigna).
+  const pending = all.filter(t => t.status === 'pending');
+  state.configureWeek.assignments = pending;
+  state.configureWeek.pendingChanges = {};
+
+  const listEl = document.getElementById('configure-week-list');
+  const actionsEl = document.getElementById('configure-week-actions');
+  const statusEl = document.getElementById('configure-week-status');
+
+  if (pending.length === 0) {
+    listEl.innerHTML = '<div class="empty-state">No hay tareas pendientes esta semana para reasignar.</div>';
+    actionsEl.hidden = true;
+    statusEl.innerHTML = '';
+    return;
+  }
+
+  // Si ya hay una propuesta pendiente (de cualquier integrante) para esta
+  // semana, avisamos y deshabilitamos el confirmar para no pisarla.
+  const pendingProposal = proposalsRes.proposals.find(p => p.weekStart === weekStart && p.status === 'pending');
+  const confirmBtn = document.getElementById('configure-week-confirm');
+  if (pendingProposal) {
+    const votersLeft = pendingProposal.totalVoters - pendingProposal.respondedCount;
+    statusEl.innerHTML = `
+      <div class="configure-preview card">
+        <strong>⏳ Hay una propuesta pendiente de ${pendingProposal.proposedByUserName} para esta semana.</strong>
+        ${votersLeft > 0 ? `<p class="muted">Faltan ${votersLeft} respuesta${votersLeft === 1 ? '' : 's'} para que se decida. Recién después de que se resuelva podés proponer otra.</p>` : ''}
+      </div>
+    `;
+    actionsEl.hidden = true;
+  } else {
+    statusEl.innerHTML = '';
+    actionsEl.hidden = false;
+    confirmBtn.disabled = false;
+  }
+
+  document.getElementById('configure-week-error').textContent = '';
+  document.getElementById('configure-week-success').textContent = '';
+
+  listEl.innerHTML = pending.map(a => {
+    const current = a.assignedToUserId;
+    const disabled = pendingProposal ? ' disabled' : '';
+    return `
+      <div class="configure-task-row" data-id="${a.id}">
+        <div class="ctr-task">
+          <span class="ctr-name">${a.taskName}</span>
+          <span class="ctr-freq">${a.frequencyLabel}</span>
+          ${a.carriedOver ? '<span class="carried-badge">Atrasada</span>' : ''}
+        </div>
+        <select class="configure-task-select" data-assignment="${a.id}" data-current="${current}"${disabled}>
+          ${members.map(m => `<option value="${m.id}" ${m.id === current ? 'selected' : ''}>${m.name}</option>`).join('')}
+        </select>
+      </div>
+    `;
+  }).join('');
+
+  listEl.querySelectorAll('.configure-task-select').forEach(sel => {
+    if (sel.disabled) return;
+    sel.addEventListener('change', () => {
+      const assignmentId = sel.dataset.assignment;
+      const target = sel.value;
+      const current = sel.dataset.current;
+      if (target === current) {
+        delete state.configureWeek.pendingChanges[assignmentId];
+      } else {
+        state.configureWeek.pendingChanges[assignmentId] = target;
+      }
+      updateConfigureWeekSummary();
+    });
+  });
+
+  updateConfigureWeekSummary();
+}
+
+// Muestra un resumen de los cambios pendientes (cuántas tareas se van a
+// reasignar y a quién), para que sea claro antes de confirmar.
+function updateConfigureWeekSummary() {
+  const pending = Object.entries(state.configureWeek.pendingChanges);
+  const statusEl = document.getElementById('configure-week-status');
+  if (pending.length === 0) {
+    statusEl.innerHTML = '';
+    return;
+  }
+  const nameOf = id => {
+    const m = state.me.members.find(mm => mm.id === id);
+    return m ? m.name : '?';
+  };
+  statusEl.innerHTML = `
+    <div class="configure-preview card">
+      <strong>${pending.length} cambio${pending.length === 1 ? '' : 's'} pendiente${pending.length === 1 ? '' : 's'}:</strong>
+      <ul>
+        ${pending.map(([assignmentId, toUserId]) => {
+          const a = state.configureWeek.assignments.find(x => x.id === assignmentId);
+          return `<li>${a ? a.taskName : 'Tarea'} → ${nameOf(toUserId)}</li>`;
+        }).join('')}
+      </ul>
+      <p class="hint">Al confirmar, se genera una propuesta que le llega a todos. Se aplica recién cuando todos la aceptan.</p>
+    </div>
+  `;
+}
+
+async function confirmConfigureWeek() {
+  const errEl = document.getElementById('configure-week-error');
+  const okEl = document.getElementById('configure-week-success');
+  errEl.textContent = '';
+  okEl.textContent = '';
+
+  const pending = Object.entries(state.configureWeek.pendingChanges);
+  if (pending.length === 0) {
+    errEl.textContent = 'No hay cambios para confirmar.';
+    return;
+  }
+
+  const changes = pending.map(([assignmentId, toUserId]) => ({ assignmentId, toUserId }));
+  try {
+    const weekStart = thisWeekStart();
+    await api('/week-proposals', { method: 'POST', body: JSON.stringify({ weekStart, changes }) });
+    // Limpiar la selección: la propuesta ya está en manos de los integrantes.
+    state.configureWeek.pendingChanges = {};
+    okEl.textContent = 'Propuesta enviada. Se aplica cuando todos los integrantes la aceptan.';
+    await loadConfigureWeek();
+    await loadNotifications();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+
+// Deshace todos los cambios pendientes y vuelve a mostrar la configuración original.
+function resetConfigureWeek() {
+  state.configureWeek.pendingChanges = {};
+  document.getElementById('configure-week-error').textContent = '';
+  document.getElementById('configure-week-success').textContent = '';
+  loadConfigureWeek();
+}
+
+document.getElementById('configure-week-confirm').addEventListener('click', confirmConfigureWeek);
+document.getElementById('configure-week-reset').addEventListener('click', resetConfigureWeek);
+
+// Responde una propuesta de configuración semanal (aceptar/rechazar).
+// Cuando el consenso es "todos aceptan", el servidor se encarga de aplicarla
+// o descartarla según las respuestas; acá solo enviamos la decisión y
+// refrescamos las notificaciones y el dashboard.
+async function respondWeekProposal(proposalId, decision) {
+  try {
+    await api(`/week-proposals/${proposalId}/respond`, { method: 'POST', body: JSON.stringify({ decision }) });
     await loadNotifications();
     await loadDashboard();
   } catch (err) {

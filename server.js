@@ -650,6 +650,225 @@ app.get('/api/swaps', requireAuth, (req, res) => {
   res.json({ swaps });
 });
 
+// ---------- propuestas de configuración semanal ----------
+//
+// El usuario "Configurar semana" permite reasignar manualmente a quién le toca
+// cada tarea de la semana en curso. En lugar de aplicarlo directo, se crea una
+// propuesta y se notifica al resto de los integrantes del hogar. La propuesta
+// recién se aplica cuando TODOS los demás la aceptan (quien la propuso ya
+// manifestó su voluntad al crearla); si cualquiera la rechaza, se descarta y
+// la semana queda como estaba.
+
+function weekProposalVoters(proposal, data) {
+  return data.users.filter(u => u.householdId === proposal.householdId && u.id !== proposal.proposedByUserId);
+}
+
+// Devuelve la versión "pública" de una propuesta lista para el frontend:
+// cuántos aceptaron, cuántos faltan, y los nombres resueltos.
+function publicWeekProposal(proposal, data) {
+  const voters = weekProposalVoters(proposal, data);
+  const respondents = Object.keys(proposal.responses || {});
+  const acceptedCount = Object.values(proposal.responses || {}).filter(d => d === 'accept').length;
+  const usersById = Object.fromEntries(data.users.map(u => [u.id, u]));
+
+  const changes = (proposal.changes || []).map(c => ({
+    ...c,
+    fromUserName: usersById[c.fromUserId]?.name || '?',
+    toUserName: usersById[c.toUserId]?.name || '?'
+  }));
+
+  return {
+    ...proposal,
+    // El proponente ya manifestó su voluntad al proponer: los votantes son
+    // los demás integrantes del hogar.
+    totalVoters: voters.length,
+    acceptedCount,
+    respondedCount: respondents.length,
+    allResponded: respondents.length === voters.length,
+    changes
+  };
+}
+
+// Crea una propuesta y notifica al resto del hogar.
+app.post('/api/week-proposals', requireAuth, (req, res) => {
+  const { weekStart, changes } = req.body; // changes: [{ assignmentId, toUserId }]
+  if (!weekStart || !Array.isArray(changes) || changes.length === 0) {
+    return res.status(400).json({ error: 'Falta la semana o la lista de cambios.' });
+  }
+
+  const result = transaction(data => {
+    const proposer = data.users.find(u => u.id === req.session.userId);
+    if (!proposer) return { error: 'not_found' };
+
+    // Solo una propuesta pendiente por semana: si ya hay una esperando
+    // respuesta, no se puede proponer otra encima (evita que se pisen).
+    const pendingExists = (data.weekProposals || []).some(
+      p => p.householdId === req.session.householdId && p.weekStart === weekStart && p.status === 'pending'
+    );
+    if (pendingExists) return { error: 'pending_exists' };
+
+    // Validar cada cambio: la asignación pertenece al hogar, es de la semana
+    // indicada, está pendiente (las hechas no se reasignan) y el destinatario
+    // es miembro del hogar.
+    const validated = [];
+    for (const ch of changes) {
+      const assignment = data.assignments.find(
+        a => a.id === ch.assignmentId && a.householdId === req.session.householdId
+      );
+      if (!assignment) return { error: 'assignment_not_found' };
+      if (assignment.weekStart !== weekStart) return { error: 'wrong_week' };
+      if (assignment.status !== 'pending') return { error: 'already_done' };
+      const toUser = data.users.find(
+        u => u.id === ch.toUserId && u.householdId === req.session.householdId
+      );
+      if (!toUser) return { error: 'user_not_found' };
+      validated.push({
+        assignmentId: assignment.id,
+        taskName: assignment.taskName || '(tarea)',
+        fromUserId: assignment.assignedToUserId,
+        toUserId: ch.toUserId
+      });
+    }
+
+    const proposal = {
+      id: randomUUID(),
+      householdId: req.session.householdId,
+      weekStart,
+      proposedByUserId: proposer.id,
+      proposedByUserName: proposer.name,
+      changes: validated,
+      status: 'pending',
+      responses: {}, // { [userId]: 'accept'|'deny' }
+      createdAt: new Date().toISOString(),
+      respondedAt: null
+    };
+    data.weekProposals = data.weekProposals || [];
+    data.weekProposals.push(proposal);
+
+    // Notificar a todos los integrantes del hogar excepto quien la propuso.
+    const partners = data.users.filter(u => u.householdId === req.session.householdId && u.id !== proposer.id);
+    partners.forEach(p => {
+      data.notifications.push({
+        id: randomUUID(),
+        userId: p.id,
+        householdId: req.session.householdId,
+        type: 'week_proposal',
+        weekProposalId: proposal.id,
+        message: `${proposer.name} propuso una nueva configuración para la semana en curso. Revisala y aceptá o rechazá.`,
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+      sendPush({
+        userIds: [p.id],
+        title: 'Nueva configuración de semana',
+        body: `${proposer.name} propuso una redistribución de tareas. ¿La aceptás?`,
+        url: '/'
+      });
+    });
+
+    return { proposal };
+  });
+
+  if (result.error === 'not_found') return res.status(404).json({ error: 'No autenticado.' });
+  if (result.error === 'pending_exists') return res.status(400).json({ error: 'Ya hay una propuesta pendiente para la semana. Esperá a que la respondan o la rechacen.' });
+  if (result.error === 'assignment_not_found') return res.status(400).json({ error: 'Alguna de las tareas no pertenece a esta semana.' });
+  if (result.error === 'wrong_week') return res.status(400).json({ error: 'Alguna de las tareas no es de la semana indicada.' });
+  if (result.error === 'already_done') return res.status(400).json({ error: 'No se puede reasignar una tarea ya completada.' });
+  if (result.error === 'user_not_found') return res.status(400).json({ error: 'La persona destino tiene que ser parte del hogar.' });
+
+  const data = load();
+  res.json({ proposal: publicWeekProposal(result.proposal, data) });
+});
+
+// Responde una propuesta. El consenso es "todos deben aceptar": la propuesta
+// se aplica recién cuando todos los integrantes aceptaron; si cualquiera
+// rechaza, se descarta y la semana queda como estaba.
+app.post('/api/week-proposals/:id/respond', requireAuth, (req, res) => {
+  const { decision } = req.body; // 'accept' | 'deny'
+  if (!['accept', 'deny'].includes(decision)) {
+    return res.status(400).json({ error: 'Decisión inválida.' });
+  }
+
+  const result = transaction(data => {
+    const proposal = data.weekProposals.find(
+      p => p.id === req.params.id && p.householdId === req.session.householdId
+    );
+    if (!proposal) return { error: 'not_found' };
+    if (proposal.proposedByUserId === req.session.userId) return { error: 'own_proposal' };
+    if (proposal.status !== 'pending') return { error: 'already_responded' };
+    if (proposal.responses[req.session.userId]) return { error: 'already_responded' };
+
+    proposal.responses[req.session.userId] = decision;
+    proposal.respondedAt = new Date().toISOString();
+
+    // Los votantes son todos los integrantes EXCEPTO quien propuso: ese ya
+    // manifestó su voluntad al crear la propuesta.
+    const voters = data.users.filter(u => u.householdId === req.session.householdId && u.id !== proposal.proposedByUserId);
+    const allResponded = voters.every(v => proposal.responses[v.id]);
+    const anyDenied = Object.values(proposal.responses).some(d => d === 'deny');
+
+    if (anyDenied) {
+      // Alguien rechazó: se descarta. Todo queda como estaba.
+      proposal.status = 'denied';
+    } else if (allResponded) {
+      // Todos aceptaron: se aplica la nueva configuración.
+      proposal.status = 'accepted';
+      for (const ch of proposal.changes) {
+        const assignment = data.assignments.find(a => a.id === ch.assignmentId);
+        if (assignment) assignment.assignedToUserId = ch.toUserId;
+      }
+    }
+    // Si falta alguien por responder, sigue 'pending'.
+
+    // Marcar como leída la notificación de propuesta asociada a este usuario.
+    data.notifications
+      .filter(n => n.weekProposalId === proposal.id && n.type === 'week_proposal' && n.userId === req.session.userId)
+      .forEach(n => { n.read = true; });
+
+    // Cuando la propuesta se cierra (aceptada o denegada), notificar a todos.
+    if (proposal.status !== 'pending') {
+      const reason = proposal.status === 'denied'
+        ? 'alguien la rechazó, así que la semana queda como estaba.'
+        : 'todos la aceptaron, así que se aplicó la nueva configuración.';
+      data.users.filter(u => u.householdId === proposal.householdId).forEach(u => {
+        data.notifications.push({
+          id: randomUUID(),
+          userId: u.id,
+          householdId: proposal.householdId,
+          type: 'week_proposal_result',
+          weekProposalId: proposal.id,
+          message: `La propuesta de configuración de la semana fue ${proposal.status === 'accepted' ? 'aceptada' : 'rechazada'}: ${reason}`,
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+        sendPush({
+          userIds: [u.id],
+          title: proposal.status === 'accepted' ? 'Configuración aplicada ✅' : 'Configuración descartada ❌',
+          body: reason,
+          url: '/'
+        });
+      });
+    }
+
+    return { proposal };
+  });
+
+  if (result.error === 'not_found') return res.status(404).json({ error: 'Propuesta no encontrada.' });
+  if (result.error === 'own_proposal') return res.status(403).json({ error: 'No podés responder a tu propia propuesta.' });
+  if (result.error === 'already_responded') return res.status(400).json({ error: 'Ya respondiste esta propuesta.' });
+
+  const data = load();
+  res.json({ proposal: publicWeekProposal(result.proposal, data) });
+});
+
+app.get('/api/week-proposals', requireAuth, (req, res) => {
+  const data = load();
+  const proposals = (data.weekProposals || [])
+    .filter(p => p.householdId === req.session.householdId)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  res.json({ proposals: proposals.map(p => publicWeekProposal(p, data)) });
+});
+
 // ---------- histórico ----------
 
 app.get('/api/weeks', requireAuth, (req, res) => {

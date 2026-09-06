@@ -1,6 +1,17 @@
 {
-  "current": "v1.4.3",
+  "current": "v1.5.0",
   "versions": [
+    {
+      "version": "v1.5.0",
+      "date": "2026-09-06",
+      "features": [
+        "Nueva sección 'Configurar semana': listado de todas las tareas de la semana en curso con desplegable para reasignar la persona a cada una",
+        "Al confirmar la nueva configuración, todos los integrantes del hogar reciben una propuesta para revisarla y aceptarla o rechazarla",
+        "Consenso total: la propuesta se aplica recién cuando todos los demás integrantes la aceptan; si alguien la rechaza, la semana queda como estaba",
+        "Solo una propuesta pendiente por semana para que no se pisen los cambios"
+      ],
+      "fixes": []
+    },
     {
       "version": "v1.4.3",
       "date": "2026-07-12",

@@ -316,6 +316,32 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 }
 .gti-actions .btn { min-width: 80px; text-align: center; }
 
+/* Configurar semana */
+.configure-week-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; max-width: 640px; }
+.configure-task-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 14px; background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.configure-task-row .ctr-task { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.configure-task-row .ctr-name { font-size: 14px; font-weight: 600; }
+.configure-task-row .ctr-freq { font-size: 12px; color: var(--muted); }
+.configure-task-select { min-width: 140px; }
+.configure-week-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; max-width: 640px; }
+.configure-week-actions .error, .configure-week-actions .success { width: 100%; }
+.configure-status { margin-bottom: 16px; max-width: 640px; }
+.configure-preview { margin-top: 16px; max-width: 640px; }
+.configure-preview strong { display: block; margin-bottom: 6px; }
+.configure-preview ul { margin: 0 0 8px; padding-left: 20px; font-size: 14px; }
+
+/* Notificaciones de propuesta de semana */
+.week-proposal-notif { background: #fdf6ee; border-radius: 10px; padding: 10px 12px; }
+.wp-detail { margin-top: 6px; }
+.wp-meta { font-size: 13px; margin-bottom: 4px; }
+.wp-changes { margin: 0 0 4px; padding-left: 18px; font-size: 13px; }
+.wp-changes li { margin-bottom: 2px; }
+.wp-progress { font-size: 12px; margin-top: 4px; }
+
 /* Avatar modal X */
 .modal-x {
   background: var(--ink); color: white; border: none; border-radius: 50%;
@@ -387,4 +413,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   .gti-actions .btn { min-width: 70px; }
   #form-new-global-task { flex-direction: column; }
   #form-new-global-task input[type="text"], #form-new-global-task textarea { min-width: 100%; }
+  .configure-task-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .configure-task-select { min-width: 100%; }
+  .configure-week-actions { flex-direction: column; align-items: stretch; }
+  .configure-week-actions .btn { width: 100%; }
 }

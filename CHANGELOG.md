@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.5.0
+
+- **Configurar semana**: nueva sección con el listado completo de las tareas de la semana en curso y un desplegable por tarea para reasignar a la persona.
+- **Propuestas de configuración**: al confirmar, el resto del hogar recibe una notificación con el detalle de los cambios propuestos y puede aceptarlos o rechazarlos.
+- **Consenso total**: la propuesta se aplica recién cuando todos los demás integrantes la aceptan; si alguien la rechaza, la semana queda como estaba.
+- **Una propuesta a la vez**: no se puede crear una nueva propuesta mientras haya una pendiente en la misma semana, para evitar cambios que se pisen.
+
 ## v1.4.3 (hotfix)
 
 - **Semana**: corregido el inicio de semana a las 08:00 del domingo (antes arrancaba a las 00:00, lo que causaba semana incorrecta y tareas en 0).

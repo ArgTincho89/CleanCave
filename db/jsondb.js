@@ -26,7 +26,9 @@ function defaultData() {
     passwordResets: [], // { id, userId, token, expiresAt, used, createdAt }
     globalTasks: [],    // { id, householdId, name, description, createdByUserId, createdByUserName,
                          //   createdAt, completedAt, completedByUserId, completedByUserName, status }
-    globalTaskHistory: [] // { id, householdId, taskId, taskName, action, userName, userId, timestamp }
+    globalTaskHistory: [], // { id, householdId, taskId, taskName, action, userName, userId, timestamp }
+    weekProposals: []   // { id, householdId, weekStart, proposedByUserId, proposedByUserName, changes: [{assignmentId, taskName, fromUserId, toUserId}],
+                        //   status: pending|accepted|denied|applied, responses: { [userId]: 'accept'|'deny' }, createdAt, respondedAt }
   };
 }
 

@@ -103,6 +103,7 @@
 
     <nav class="topbar-nav">
       <button class="nav-btn active" data-page="dashboard">Semana en curso</button>
+      <button class="nav-btn" data-page="configure-week">Configurar semana</button>
       <button class="nav-btn" data-page="tasks">Configurar tareas</button>
       <button class="nav-btn" data-page="global-tasks">Tareas globales</button>
       <button class="nav-btn" data-page="history">Histórico</button>
@@ -122,6 +123,25 @@
       </div>
 
       <div id="columns" class="columns"></div>
+    </main>
+
+    <!-- -------- CONFIGURE WEEK -------- -->
+    <main id="page-configure-week" class="page">
+      <div class="dashboard-header">
+        <div>
+          <h2>Configurar semana</h2>
+          <p class="muted">Reasigná manualmente a quién le toca cada tarea de la semana en curso. Al confirmar, les llega una propuesta a todos los integrantes del hogar: recién se aplica cuando todos la aceptan. Si alguien la rechaza, la semana queda como estaba.</p>
+        </div>
+      </div>
+
+      <div id="configure-week-status" class="configure-status"></div>
+      <div id="configure-week-list" class="configure-week-list"></div>
+      <div id="configure-week-actions" class="configure-week-actions" hidden>
+        <button id="configure-week-confirm" class="btn primary">Confirmar</button>
+        <button id="configure-week-reset" class="btn ghost small">Descartar cambios</button>
+        <p class="error" id="configure-week-error"></p>
+        <p class="success" id="configure-week-success"></p>
+      </div>
     </main>
 
     <!-- -------- TASKS ADMIN -------- -->
