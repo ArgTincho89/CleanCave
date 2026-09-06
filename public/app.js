@@ -366,10 +366,14 @@ async function loadConfigureWeek() {
     return;
   }
 
-  // Si ya hay una propuesta pendiente (de cualquier integrante) para esta
-  // semana, mostramos el detalle completo con botones de respuesta si el
-  // usuario actual todavía puede votar, y deshabilitamos el confirmar.
-  const pendingProposal = proposalsRes.proposals.find(p => p.weekStart === weekStart && p.status === 'pending');
+  // Solo bloqueamos la configuración cuando hay una propuesta pendiente que el
+  // usuario actual todavía tiene que decidir (la creó otro integrante y no votó).
+  // Si ya respondió, la propuesta es suya o está cerrada, no se muestra el
+  // cartel "X propuso reasignar" y la configuración queda habilitada.
+  const myId = state.me && state.me.user && state.me.user.id;
+  const pendingProposal = proposalsRes.proposals.find(p =>
+    p.weekStart === weekStart && p.status === 'pending' && !p.myDecision && p.proposedByUserId !== myId
+  );
   const confirmBtn = document.getElementById('configure-week-confirm');
   if (pendingProposal) {
     statusEl.innerHTML = weekProposalCardHtml(pendingProposal);
@@ -601,15 +605,19 @@ async function loadDashboard() {
 }
 
 // Banner en el dashboard para las propuestas de configuración semanal de la
-// semana en curso. Siempre visible mientras exista una propuesta (pendiente o
-// cerrada) para que esté claro dónde aceptar/rechazar; se oculta si no hay.
+// semana en curso. Se muestra solo mientras haya una propuesta pendiente que
+// el usuario actual tenga que decidir (la propuso otro integrante y aún no
+// votó). Si ya respondió, la propuesta es suya o está cerrada, se oculta.
 async function loadWeekProposalBanner(weekStart) {
   const banner = document.getElementById('week-proposal-banner');
   let proposals = [];
   try {
     proposals = (await api('/week-proposals')).proposals || [];
   } catch {}
-  const proposal = proposals.find(p => p.weekStart === weekStart);
+  const myId = state.me && state.me.user && state.me.user.id;
+  const proposal = proposals.find(p =>
+    p.weekStart === weekStart && p.status === 'pending' && !p.myDecision && p.proposedByUserId !== myId
+  );
   if (!proposal) {
     banner.hidden = true;
     banner.innerHTML = '';
