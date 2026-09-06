@@ -579,7 +579,7 @@ async function loadTasks() {
   tbody.innerHTML = tasks.map(t => `
     <tr>
       <td>
-        ${t.name}
+        ${t.name}${pinnedBadgeHtml(t)}
         ${t.description ? `<div class="task-desc-preview">${t.description}</div>` : ''}
       </td>
       <td>${t.frequencyLabel} <span class="muted">(${t.frequencyDays} días)</span></td>
@@ -587,6 +587,7 @@ async function loadTasks() {
       <td>
         <div class="row-actions">
           <button class="btn ghost small edit-task" data-id="${t.id}">Editar</button>
+          <button class="btn ghost small pin-task" data-id="${t.id}" data-name="${t.name}">Fijar</button>
           <button class="btn ghost small toggle-task" data-id="${t.id}">${t.active ? 'Desactivar' : 'Activar'}</button>
           <button class="btn danger small delete-task" data-id="${t.id}" data-name="${t.name}">Eliminar</button>
         </div>
@@ -603,6 +604,10 @@ async function loadTasks() {
 
   tbody.querySelectorAll('.edit-task').forEach(btn => {
     btn.addEventListener('click', () => openEditTaskModal(btn.dataset.id));
+  });
+
+  tbody.querySelectorAll('.pin-task').forEach(btn => {
+    btn.addEventListener('click', () => openPinTaskModal(btn.dataset.id));
   });
 
   tbody.querySelectorAll('.delete-task').forEach(btn => {
@@ -693,6 +698,103 @@ document.getElementById('delete-task-confirm').addEventListener('click', async (
   await api(`/tasks/${deletingTaskId}`, { method: 'DELETE' });
   deleteTaskModal.hidden = true;
   await loadTasks();
+});
+
+// -------- fijar tarea (pin) --------
+
+const pinTaskModal = document.getElementById('pin-task-modal');
+let pinningTaskId = null;
+
+// Suma días a una fecha ISO YYYY-MM-DD con aritmética LOCAL. OJO: nunca usar
+// toISOString().slice(0,10) acá — retorna UTC y puede cambiar el día según zona
+// horaria (mismo trap que thisWeekStart, ver git log).
+function addDaysLocal(isoDate, days) {
+  const d = new Date(isoDate + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + dd;
+}
+
+// Badge "Fijada" en la fila de la tarea cuando está fijada (con nombre si se puede resolver).
+function pinnedBadgeHtml(task) {
+  if (!task.pinnedToUserId) return '';
+  const member = state.me && state.me.members.find(m => m.id === task.pinnedToUserId);
+  const label = member ? `Fijada a ${member.name}` : 'Fijada';
+  return ` <span class="badge" title="Fijada hasta ${task.pinnedToWeek || '—'}">${label}</span>`;
+}
+
+function openPinTaskModal(taskId) {
+  const task = tasksCache.find(t => t.id === taskId);
+  if (!task) return;
+  pinningTaskId = taskId;
+  document.getElementById('pin-task-error').textContent = '';
+
+  const userSelect = document.getElementById('pin-task-user');
+  if (state.me) {
+    userSelect.innerHTML = state.me.members.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+  }
+
+  const fromInput = document.getElementById('pin-task-from');
+  const toInput = document.getElementById('pin-task-to');
+  const removeBtn = document.getElementById('pin-task-remove');
+
+  const pinned = task.pinnedToUserId && task.pinnedFromWeek && task.pinnedToWeek;
+  if (pinned) {
+    // Tarea ya fijada: preseleccionar persona/rango y ofrecer "Quitar fijación".
+    if (userSelect.querySelector(`option[value="${task.pinnedToUserId}"]`)) {
+      userSelect.value = task.pinnedToUserId;
+    }
+    fromInput.value = task.pinnedFromWeek;
+    toInput.value = task.pinnedToWeek;
+    removeBtn.hidden = false;
+  } else {
+    // Por defecto: desde la semana actual hasta 4 semanas después (matemática local).
+    const from = state.currentWeekStart || thisWeekStart();
+    fromInput.value = from;
+    toInput.value = addDaysLocal(from, 28);
+    removeBtn.hidden = true;
+  }
+
+  pinTaskModal.hidden = false;
+}
+
+document.getElementById('pin-task-cancel').addEventListener('click', () => { pinTaskModal.hidden = true; });
+
+document.getElementById('pin-task-save').addEventListener('click', async () => {
+  const errEl = document.getElementById('pin-task-error');
+  errEl.textContent = '';
+  try {
+    await api(`/tasks/${pinningTaskId}/pin`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        pinnedToUserId: document.getElementById('pin-task-user').value,
+        pinnedFromWeek: document.getElementById('pin-task-from').value,
+        pinnedToWeek: document.getElementById('pin-task-to').value
+      })
+    });
+    pinTaskModal.hidden = true;
+    await loadTasks();
+    await loadDashboard(); // la semana se regeneró al fijar
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+});
+
+document.getElementById('pin-task-remove').addEventListener('click', async () => {
+  const errEl = document.getElementById('pin-task-error');
+  errEl.textContent = '';
+  try {
+    await api(`/tasks/${pinningTaskId}/pin`, {
+      method: 'PUT',
+      body: JSON.stringify({ pinnedToUserId: null })
+    });
+    pinTaskModal.hidden = true;
+    await loadTasks(); // quitar pin NO regenera: no hace falta recargar el dashboard
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
 });
 
 // ---------------- Perfil (página) ----------------

@@ -342,6 +342,29 @@
   </div>
 </div>
 
+<!-- ===================== MODAL: fijar tarea ===================== -->
+<div id="pin-task-modal" class="modal-overlay" hidden>
+  <div class="modal card">
+    <h3>Fijar tarea</h3>
+    <p class="hint">Mientras dura la fijación, la tarea siempre le toca a esa persona. Al terminar el rango o al quitar la fijación, la rotación vuelve a la normalidad.</p>
+    <label>Persona
+      <select id="pin-task-user"></select>
+    </label>
+    <label>Desde la semana
+      <input type="date" id="pin-task-from">
+    </label>
+    <label>Hasta la semana
+      <input type="date" id="pin-task-to">
+    </label>
+    <div class="modal-actions">
+      <button id="pin-task-remove" class="btn danger small" hidden>Quitar fijación</button>
+      <button id="pin-task-cancel" class="btn ghost small">Cancelar</button>
+      <button id="pin-task-save" class="btn primary small">Guardar</button>
+    </div>
+    <p class="error" id="pin-task-error"></p>
+  </div>
+</div>
+
 <!-- ===================== MODAL: editar tarea global ===================== -->
 <div id="edit-global-task-modal" class="modal-overlay" hidden>
   <div class="modal card">

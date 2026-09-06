@@ -388,6 +388,50 @@ app.post('/api/tasks/:id/set-last-completed', requireAuth, (req, res) => {
   res.json(result);
 });
 
+// Fija (pin) una tarea a una persona para un rango de semanas inclusivo. Al fijar,
+// la semana actual se regenera en la misma transacción: si la tarea ya tenía una
+// fila pendiente esta semana asignada a otra persona, el pin la reasigna (manda
+// sobre el arrastre); las filas ya hechas (done) y las semanas pasadas quedan
+// intactas. Quitar el pin ({ pinnedToUserId: null }) solo limpia los campos, sin
+// regenerar ni re-mezclar la semana actual.
+app.put('/api/tasks/:id/pin', requireAuth, (req, res) => {
+  const { pinnedToUserId, pinnedFromWeek, pinnedToWeek } = req.body;
+  const result = transaction(data => {
+    const task = data.tasks.find(t => t.id === req.params.id && t.householdId === req.session.householdId);
+    if (!task) return { error: 'task_not_found' };
+
+    if (pinnedToUserId === null || pinnedToUserId === undefined) { // quitar pin: sin regeneración
+      task.pinnedToUserId = null;
+      task.pinnedFromWeek = null;
+      task.pinnedToWeek = null;
+      return { task };
+    }
+
+    if (!data.users.find(u => u.id === pinnedToUserId && u.householdId === req.session.householdId)) {
+      return { error: 'user_not_found' };
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(pinnedFromWeek || '') || !/^\d{4}-\d{2}-\d{2}$/.test(pinnedToWeek || '')) {
+      return { error: 'invalid_week' };
+    }
+    if (pinnedFromWeek < currentWeekStart()) return { error: 'past_from' };
+    if (pinnedToWeek < pinnedFromWeek) return { error: 'invalid_range' };
+
+    task.pinnedToUserId = pinnedToUserId;
+    task.pinnedFromWeek = pinnedFromWeek;
+    task.pinnedToWeek = pinnedToWeek;
+    // Regeneración idempotente de la semana actual dentro de la misma transacción.
+    generateWeek(data, req.session.householdId, currentWeekStart());
+    return { task };
+  });
+
+  if (result.error === 'task_not_found') return res.status(404).json({ error: 'Tarea no encontrada.' });
+  if (result.error === 'user_not_found') return res.status(400).json({ error: 'La persona tiene que ser parte del hogar.' });
+  if (result.error === 'invalid_week') return res.status(400).json({ error: 'Fechas inválidas.' });
+  if (result.error === 'past_from') return res.status(400).json({ error: 'La semana de inicio no puede ser anterior a la actual.' });
+  if (result.error === 'invalid_range') return res.status(400).json({ error: 'La semana final no puede ser anterior a la inicial.' });
+  res.json(result);
+});
+
 // Eliminar (hard): borra la tarea definitivamente. El historial de asignaciones
 // pasadas no se pierde porque cada asignación guarda su propio taskName/frequencyLabel.
 app.delete('/api/tasks/:id', requireAuth, (req, res) => {

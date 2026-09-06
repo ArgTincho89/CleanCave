@@ -81,6 +81,18 @@ function carryOverPending(data, householdId, weekStart, activeTaskIds, loadByUse
   return carriedTaskIds;
 }
 
+// Devuelve si una tarea está "fijada" (pinned) a una persona para la semana
+// weekStart. Los campos opcionales `pinnedToUserId`, `pinnedFromWeek` y
+// `pinnedToWeek` (ISO YYYY-MM-DD domingo) representan el pin; ausentes o null
+// significan "no fijada". El rango es inclusivo y la comparación ISO es segura
+// (cero-padding). Devuelve null si no está fijada o está fuera de rango, y si
+// no, `{ userId }` con la persona fijada.
+function isPinned(task, weekStart) {
+  if (!task.pinnedToUserId || !task.pinnedFromWeek || !task.pinnedToWeek) return null;
+  if (weekStart < task.pinnedFromWeek || weekStart > task.pinnedToWeek) return null;
+  return { userId: task.pinnedToUserId };
+}
+
 // Genera (o completa) la lista de tareas de la semana que arranca en weekStart.
 // Reglas:
 //  - Primero se trasladan las tareas que quedaron pendientes de semanas
@@ -128,9 +140,21 @@ function generateWeek(data, householdId, weekStart) {
   const created = [];
 
   for (const task of tasks) {
-    if (carriedTaskIds.has(task.id)) continue; // ya se trasladó pendiente de una semana anterior
     const already = data.assignments.find(a => a.taskId === task.id && a.weekStart === weekStart);
-    if (already) continue; // ya generada para esta semana, no duplicar
+    const pinned = isPinned(task, weekStart);
+
+    // Si ya hay una fila pendiente esta semana asignada a otra persona y la
+    // tarea está fijada, el pin manda sobre el arrastre/rotación: se reasigna
+    // la fila al usuario fijado (el "quién", nunca el "si toca"). Las filas
+    // ya hechas (done) quedan intactas.
+    if (already && pinned && already.status === 'pending' && already.assignedToUserId !== pinned.userId) {
+      loadByUser[already.assignedToUserId] = (loadByUser[already.assignedToUserId] || 1) - 1;
+      already.assignedToUserId = pinned.userId;
+      loadByUser[pinned.userId] = (loadByUser[pinned.userId] || 0) + 1;
+    }
+    if (already) continue; // ya generada para esta semana (incl. la reasignada), no duplicar
+
+    if (carriedTaskIds.has(task.id)) continue; // ya se trasladó pendiente de una semana anterior
 
     const last = lastCompletion(data, task.id);
     let due;
@@ -143,7 +167,11 @@ function generateWeek(data, householdId, weekStart) {
     if (!due) continue;
 
     let assignedTo;
-    if (last) {
+    if (pinned && members.some(m => m.id === pinned.userId)) {
+      // El pin manda sobre el "quién": se asigna al usuario fijado, ignorando
+      // la rotación y la regla de no repetir persona.
+      assignedTo = pinned.userId;
+    } else if (last) {
       // Rotar: le toca a cualquiera que NO sea quien la hizo la última vez.
       const others = members.filter(m => m.id !== last.assignedToUserId);
       if (others.length > 0) {
@@ -205,4 +233,4 @@ function setManualCompletion(data, householdId, task, userId, dateStr) {
   return assignment;
 }
 
-module.exports = { generateWeek, lastCompletion, addDays, todayStr, weekStartFor, setManualCompletion };
+module.exports = { generateWeek, lastCompletion, addDays, todayStr, weekStartFor, setManualCompletion, isPinned };
