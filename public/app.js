@@ -1,4 +1,4 @@
-const state = { me: null, currentWeekStart: null, weekData: null, swapContext: null, pendingComplete: null, lastActiveNav: 'dashboard', globalTasks: [], configureWeek: { assignments: [], pendingChanges: {} } };
+const state = { me: null, currentWeekStart: null, weekData: null, swapContext: null, pendingComplete: null, lastActiveNav: 'dashboard', globalTasks: [], configureWeek: { assignments: [], pendingChanges: {} }, calendar: { month: null, today: null, todayMonth: null, events: [], dayViewDate: null, editingId: null, deletingId: null } };
 
 const AVATAR_COLORS = ['#c1652f', '#6f8f6a', '#7a6bb5', '#c14b4b', '#3f7a9e'];
 const CHART_COLORS = ['#c1652f', '#6f8f6a', '#7a6bb5', '#c14b4b', '#3f7a9e', '#e0a458', '#4a8f8b', '#a45c8c'];
@@ -132,6 +132,7 @@ function showPage(pageId, navBtnPage) {
   if (pageId === 'tasks') loadTasks();
   if (pageId === 'global-tasks') { loadGlobalTasks(); loadGlobalTasksHistory(); }
   if (pageId === 'shopping-list') loadShoppingList();
+  if (pageId === 'calendar') loadCalendar();
   if (pageId === 'history') loadHistoryWeeks();
   if (pageId === 'stats') loadStats();
   if (pageId === 'configure-week') loadConfigureWeek();
@@ -1539,6 +1540,308 @@ document.getElementById('form-new-shopping-item').addEventListener('submit', asy
   } catch (err) {
     errEl.textContent = err.message;
   }
+});
+
+// ---------------- Calendario ----------------
+//
+// Los eventos son del HOGAR, no de quien los crea (RF-14). Las fechas viajan
+// como strings 'YYYY-MM-DD' / 'YYYY-MM' (comparación lexicográfica segura) y
+// "hoy" lo resuelve el SERVIDOR (getDateInTimezone) — acá NUNCA se usa
+// new Date().toISOString() para fechas de calendario (mismo trap que
+// thisWeekStart, ver git log).
+
+// Paleta copiada idéntica de CALENDAR_COLORS en server.js (el server es la
+// fuente de verdad y valida contra este set exacto).
+const CALENDAR_COLORS = [
+  '#c1652f', '#7a6bb5', '#6f8f6a', '#a4512f', '#3a7d82',
+  '#b5853f', '#5d7fb0', '#8a5f9e', '#c0392b', '#7f8c6a'
+];
+const CALENDAR_MAX_PILLS = 3;
+
+// Fecha de HOY en el navegador como 'YYYY-MM-DD' con aritmética LOCAL (sin
+// toISOString, que devuelve UTC). Solo se usa como mes inicial por defecto:
+// la fuente de verdad para "hoy" es state.calendar.today (del servidor).
+function localTodayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + dd;
+}
+
+function calendarEventsForDate(date) {
+  return state.calendar.events.filter(ev => ev.startDate <= date && ev.endDate >= date);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function formatMonthLabel(month) {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+}
+
+function formatFullDate(date) {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+// Carga el mes visible y lo pinta. El mes por defecto es el del navegador
+// (localTodayStr) y el highlight de "hoy" usa el `today` que devuelve el
+// servidor: si el navegador está en otra timezone, "Hoy" igualmente devuelve
+// al mes correcto.
+async function loadCalendar() {
+  if (!state.calendar.month) {
+    state.calendar.month = localTodayStr().slice(0, 7);
+  }
+  const { events, today, todayMonth } = await api('/calendar-events?month=' + state.calendar.month);
+  state.calendar.events = events;
+  state.calendar.today = today;
+  state.calendar.todayMonth = todayMonth;
+  renderCalendarGrid();
+}
+
+function renderCalendarGrid() {
+  const month = state.calendar.month;
+  document.getElementById('calendar-month-label').textContent = formatMonthLabel(month);
+  document.getElementById('calendar-weekdays').innerHTML = WEEKDAY_LABELS_ES
+    .map(d => `<div class="calendar-weekday">${d}</div>`)
+    .join('');
+
+  const today = state.calendar.today;
+  const gridEl = document.getElementById('calendar-grid');
+  gridEl.innerHTML = calendarMonthGrid(month).map(cell => {
+    if (!cell.date) return '<div class="calendar-cell empty"></div>';
+    const dayEvents = calendarEventsForDate(cell.date);
+    const isToday = cell.date === today;
+    return `
+      <div class="calendar-cell${isToday ? ' is-today' : ''}${dayEvents.length ? ' has-events' : ''}" data-date="${cell.date}">
+        <div class="cell-day">${cell.day}</div>
+        ${dayEvents.slice(0, CALENDAR_MAX_PILLS).map(ev => `
+          <div class="event-pill" style="background:${ev.color}" data-date="${cell.date}">
+            ${ev.allDay ? '' : `<span class="event-pill-time">${ev.startTime || ''}</span>`}<span class="event-pill-title">${escapeHtml(ev.title)}</span>
+          </div>
+        `).join('')}
+        ${dayEvents.length > CALENDAR_MAX_PILLS ? `<div class="event-pill more-pill" data-date="${cell.date}">+${dayEvents.length - CALENDAR_MAX_PILLS} más</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  // Clic en celda: con eventos → day view; vacía → crear pre-llenado (RF-04/RF-10).
+  gridEl.querySelectorAll('.calendar-cell[data-date]').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const date = cell.dataset.date;
+      if (calendarEventsForDate(date).length > 0) openDayView(date);
+      else openEventModal(date, null);
+    });
+  });
+  // Clic en un pill o en "+N más" → day view (RF-09).
+  gridEl.querySelectorAll('.event-pill[data-date]').forEach(pill => {
+    pill.addEventListener('click', e => {
+      e.stopPropagation();
+      openDayView(pill.dataset.date);
+    });
+  });
+}
+
+// -------- modal crear/editar evento --------
+
+function buildColorSwatches(selectedColor) {
+  const wrap = document.getElementById('event-swatches');
+  wrap.innerHTML = CALENDAR_COLORS.map(color => `
+    <button type="button" class="color-swatch${color === selectedColor ? ' selected' : ''}" data-color="${color}" style="background:${color}" aria-label="Color ${color}" title="${color}"></button>
+  `).join('');
+  wrap.querySelectorAll('.color-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      document.getElementById('event-color').value = sw.dataset.color;
+      wrap.querySelectorAll('.color-swatch').forEach(s => s.classList.toggle('selected', s === sw));
+    });
+  });
+}
+
+function updateEventAllDayUI() {
+  const allDay = document.getElementById('event-all-day').checked;
+  const startTime = document.getElementById('event-start-time');
+  const endTime = document.getElementById('event-end-time');
+  startTime.disabled = allDay;
+  endTime.disabled = allDay;
+  if (allDay) { startTime.value = ''; endTime.value = ''; }
+}
+
+// Abre el modal de evento. Con event != null edita (RF-11); con date != null
+// pre-llena la fecha inicial con ese día (RF-04); sin nada, usa el "hoy" del
+// servidor (RF-04 general).
+function openEventModal(date, event) {
+  const editing = !!event;
+  state.calendar.editingId = editing ? event.id : null;
+  document.getElementById('event-modal-title').textContent = editing ? 'Editar evento' : 'Nuevo evento';
+  document.getElementById('event-title').value = editing ? event.title : '';
+  document.getElementById('event-description').value = editing ? (event.description || '') : '';
+  const color = editing ? event.color : CALENDAR_COLORS[0];
+  document.getElementById('event-color').value = color;
+  buildColorSwatches(color);
+  const startDate = editing ? event.startDate : (date || state.calendar.today);
+  document.getElementById('event-start-date').value = startDate;
+  document.getElementById('event-end-date').value = editing ? event.endDate : startDate;
+  document.getElementById('event-start-time').value = editing && event.startTime ? event.startTime : '';
+  document.getElementById('event-end-time').value = editing && event.endTime ? event.endTime : '';
+  document.getElementById('event-all-day').checked = editing ? !!event.allDay : false;
+  updateEventAllDayUI();
+  document.getElementById('event-error').textContent = '';
+  document.getElementById('event-modal').hidden = false;
+}
+
+// Si la fecha inicial queda después de la final, la final se auto-extiende a
+// la inicial (el server SIGUE devolviendo 400 si llega end < start — RF-15 S2).
+document.getElementById('event-start-date').addEventListener('change', () => {
+  const start = document.getElementById('event-start-date').value;
+  const end = document.getElementById('event-end-date').value;
+  if (start && end && start > end) document.getElementById('event-end-date').value = start;
+});
+
+document.getElementById('event-all-day').addEventListener('change', updateEventAllDayUI);
+document.getElementById('event-cancel').addEventListener('click', () => {
+  document.getElementById('event-modal').hidden = true;
+});
+document.getElementById('event-save').addEventListener('click', async () => {
+  const errEl = document.getElementById('event-error');
+  errEl.textContent = '';
+  const payload = {
+    title: document.getElementById('event-title').value.trim(),
+    description: document.getElementById('event-description').value.trim(),
+    color: document.getElementById('event-color').value,
+    startDate: document.getElementById('event-start-date').value,
+    endDate: document.getElementById('event-end-date').value,
+    startTime: document.getElementById('event-start-time').value || null,
+    endTime: document.getElementById('event-end-time').value || null,
+    allDay: document.getElementById('event-all-day').checked
+  };
+  try {
+    const id = state.calendar.editingId;
+    if (id) {
+      await api('/calendar-events/' + id, { method: 'PUT', body: JSON.stringify(payload) });
+    } else {
+      await api('/calendar-events', { method: 'POST', body: JSON.stringify(payload) });
+    }
+    document.getElementById('event-modal').hidden = true;
+    await loadCalendar();
+  } catch (err) {
+    // Los mensajes de validación del server son los pinned (RF-15): se
+    // muestran tal cual vienen.
+    errEl.textContent = err.message;
+  }
+});
+
+// -------- day view --------
+
+// Etiqueta de tiempo de un evento para el day view: "Todo el día" para
+// all-day, "17:00 → 18:00" para un día con horario, y el rango completo de
+// fechas para eventos multi-día (RF-10).
+function dayEventRangeLabel(ev) {
+  if (ev.allDay) return 'Todo el día';
+  if (ev.startDate === ev.endDate) {
+    return ev.startTime && ev.endTime ? `${ev.startTime} → ${ev.endTime}` : (ev.startTime || '');
+  }
+  return `${ev.startDate}${ev.startTime ? ' ' + ev.startTime : ''} → ${ev.endDate}${ev.endTime ? ' ' + ev.endTime : ''}`;
+}
+
+function openDayView(date) {
+  state.calendar.dayViewDate = date;
+  document.getElementById('day-view-title').textContent = formatFullDate(date);
+  const dayEvents = calendarEventsForDate(date);
+  const listEl = document.getElementById('day-view-list');
+  if (dayEvents.length === 0) {
+    listEl.innerHTML = '<div class="empty-state">No hay eventos este día.</div>';
+  } else {
+    listEl.innerHTML = dayEvents.map(ev => `
+      <div class="day-event-row">
+        <span class="day-event-swatch" style="background:${ev.color}"></span>
+        <div class="day-event-body">
+          <div class="day-event-title">${escapeHtml(ev.title)}</div>
+          ${ev.description ? `<div class="day-event-desc">${escapeHtml(ev.description)}</div>` : ''}
+          <div class="day-event-meta">${dayEventRangeLabel(ev)}</div>
+        </div>
+        <div class="day-event-actions">
+          <button class="btn ghost small edit-day-event" data-id="${ev.id}">Editar</button>
+          <button class="btn danger small delete-day-event" data-id="${ev.id}">Eliminar</button>
+        </div>
+      </div>
+    `).join('');
+    listEl.querySelectorAll('.edit-day-event').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ev = state.calendar.events.find(e => e.id === btn.dataset.id);
+        if (!ev) return;
+        document.getElementById('day-view-modal').hidden = true;
+        openEventModal(ev.startDate, ev);
+      });
+    });
+    listEl.querySelectorAll('.delete-day-event').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ev = state.calendar.events.find(e => e.id === btn.dataset.id);
+        if (!ev) return;
+        openDeleteEventModal(ev);
+      });
+    });
+  }
+  document.getElementById('day-view-modal').hidden = false;
+}
+
+document.getElementById('day-view-close').addEventListener('click', () => {
+  document.getElementById('day-view-modal').hidden = true;
+});
+
+// -------- eliminar evento (con confirmación, RF-12) --------
+
+function openDeleteEventModal(event) {
+  state.calendar.deletingId = event.id;
+  document.getElementById('delete-event-text').textContent = event.title;
+  document.getElementById('delete-event-modal').hidden = false;
+}
+
+document.getElementById('delete-event-cancel').addEventListener('click', () => {
+  document.getElementById('delete-event-modal').hidden = true;
+  state.calendar.deletingId = null;
+});
+document.getElementById('delete-event-confirm').addEventListener('click', async () => {
+  const id = state.calendar.deletingId;
+  if (!id) return;
+  try {
+    await api('/calendar-events/' + id, { method: 'DELETE' });
+    document.getElementById('delete-event-modal').hidden = true;
+    document.getElementById('day-view-modal').hidden = true;
+    state.calendar.deletingId = null;
+    await loadCalendar();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// -------- navegación de mes (RF-01) --------
+
+document.getElementById('calendar-prev').addEventListener('click', () => {
+  state.calendar.month = shiftMonth(state.calendar.month, -1);
+  loadCalendar();
+});
+document.getElementById('calendar-next').addEventListener('click', () => {
+  state.calendar.month = shiftMonth(state.calendar.month, 1);
+  loadCalendar();
+});
+// "Hoy" vuelve al mes del servidor (todayMonth) — no al del navegador.
+document.getElementById('calendar-today').addEventListener('click', () => {
+  state.calendar.month = state.calendar.todayMonth;
+  loadCalendar();
+});
+// "Nuevo evento" abre el modal sobre el día actual (RF-04).
+document.getElementById('calendar-new-event').addEventListener('click', () => {
+  openEventModal(state.calendar.today, null);
+});
+
+// Clic en el fondo de los modales de calendario los cierra (patrón avatar-modal).
+['event-modal', 'day-view-modal', 'delete-event-modal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) document.getElementById(id).hidden = true;
+  });
 });
 
 boot();

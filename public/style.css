@@ -319,6 +319,74 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 /* Lista de compra */
 #form-new-shopping-item input[type="text"] { flex: 1; min-width: 180px; }
 
+/* === Calendario === */
+.calendar-toolbar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.calendar-month-label {
+  font-family: 'Georgia', 'Iowan Old Style', serif;
+  font-size: 18px; font-weight: 700; flex: 1; min-width: 160px;
+  text-transform: capitalize; color: var(--ink);
+}
+.calendar-weekdays {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px;
+}
+.calendar-weekday {
+  text-align: center; font-size: 12px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .03em; padding: 6px 0;
+}
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.calendar-cell {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  min-height: 92px; padding: 6px; display: flex; flex-direction: column; gap: 3px;
+  overflow: hidden; cursor: pointer; position: relative;
+}
+.calendar-cell.empty { background: transparent; border: none; cursor: default; min-height: 40px; }
+.calendar-cell.has-events:hover { border-color: var(--primary); }
+.calendar-cell.is-today { border: 2px solid var(--primary); background: #fdf3ea; }
+.cell-day { font-size: 13px; font-weight: 600; color: var(--ink); }
+.calendar-cell.is-today .cell-day { color: var(--primary-dark); }
+.event-pill {
+  border-radius: 6px; padding: 2px 6px; font-size: 11px; line-height: 1.35;
+  color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex-shrink: 0; display: flex; gap: 4px; min-width: 0;
+}
+.event-pill-time { opacity: .92; font-weight: 700; flex-shrink: 0; }
+.event-pill-title { overflow: hidden; text-overflow: ellipsis; }
+.event-pill.more-pill { background: var(--line); color: var(--muted); font-weight: 700; }
+.event-pill.more-pill:hover { color: var(--primary-dark); }
+
+/* swatches del modal de evento */
+.color-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.color-swatch {
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+  cursor: pointer; padding: 0; flex-shrink: 0;
+}
+.color-swatch.selected { border-color: var(--ink); box-shadow: inset 0 0 0 3px var(--card); }
+.color-swatch:hover { transform: scale(1.08); }
+
+/* filas de fechas en el modal de evento */
+.event-dates-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.event-dates-row label { flex: 1; min-width: 130px; }
+.event-all-day-label {
+  flex-direction: row; align-items: center; gap: 8px; cursor: pointer; color: var(--ink);
+}
+.event-all-day-label input { width: auto; }
+
+/* day view */
+.day-event-row {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px;
+  background: #fffdfb;
+}
+.day-event-swatch { width: 12px; height: 12px; border-radius: 3px; margin-top: 4px; flex-shrink: 0; }
+.day-event-body { flex: 1; min-width: 0; }
+.day-event-title { font-size: 14px; font-weight: 600; }
+.day-event-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.day-event-meta { font-size: 12px; color: var(--accent2); margin-top: 2px; }
+.day-event-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.day-event-actions .btn { min-width: 80px; text-align: center; }
+
 /* Configurar semana */
 .configure-week-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; max-width: 640px; }
 .configure-task-row {
@@ -429,4 +497,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   .configure-task-select { min-width: 120px; }
   .configure-week-actions { flex-direction: column; align-items: stretch; }
   .configure-week-actions .btn { width: 100%; }
+
+  /* Calendario mobile: grid de 7 columnas se mantiene, celdas más chicas */
+  .calendar-month-label { font-size: 16px; min-width: 120px; }
+  .calendar-toolbar .btn { padding: 6px 10px; font-size: 12px; min-height: 36px; }
+  .calendar-cell { min-height: 60px; padding: 4px; gap: 2px; }
+  .calendar-cell.empty { min-height: 0; padding: 0; }
+  .cell-day { font-size: 12px; }
+  .event-pill { font-size: 10px; padding: 1px 4px; border-radius: 5px; }
+  .event-dates-row label { min-width: 100%; }
+  .day-event-actions .btn { min-width: 70px; }
 }
