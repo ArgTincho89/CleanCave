@@ -1,9 +1,10 @@
-const CACHE = 'cleancache-v3';
+const CACHE = 'cleancache-v4';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/style.css',
   '/app.js',
+  '/calendar-utils.js',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',

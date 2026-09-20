@@ -1,6 +1,18 @@
 {
-  "current": "v1.5.0",
+  "current": "v1.6.0",
   "versions": [
+    {
+      "version": "v1.6.0",
+      "date": "2026-09-20",
+      "features": [
+        "Nueva sección 'Calendario': calendario mensual compartido del hogar con eventos de día completo, con horario o de varios días",
+        "Vista mensual con navegación entre meses, botón 'Hoy' y resaltado del día actual",
+        "Vista por día con todos los eventos, su descripción y sus horarios, y acciones para editarlos o eliminarlos",
+        "Los días con más de 3 eventos muestran '+N más' para ver el resto sin perder ninguno",
+        "Los eventos se crean desde cualquier día del mes o desde 'Nuevo evento', con paleta de 10 colores sin significado fijo"
+      ],
+      "fixes": []
+    },
     {
       "version": "v1.5.0",
       "date": "2026-09-06",

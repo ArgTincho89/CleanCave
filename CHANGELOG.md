@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.6.0
+
+- **Calendario**: nueva sección con calendario mensual compartido del hogar. Eventos de día completo, con horario o de varios días, sin categorías ni tipos predefinidos.
+- **Vista mensual**: navegación entre meses, botón "Hoy" y resaltado del día actual.
+- **Vista por día**: todos los eventos del día con descripción, horarios y acciones para editarlos o eliminarlos.
+- **Desborde de días**: con más de 3 eventos en un día, el resto se agrupa en "+N más" que abre la vista del día (no se pierde ningún evento).
+- **Creación**: desde cualquier día del mes (queda prellenado) o desde "Nuevo evento" (arranca en el día actual). Paleta de 10 colores sin significado fijo.
+- **PWA**: caché actualizada a v4.
+
 ## v1.5.0
 
 - **Configurar semana**: nueva sección con el listado completo de las tareas de la semana en curso y un desplegable por tarea para reasignar a la persona.

@@ -107,6 +107,7 @@
       <button class="nav-btn" data-page="tasks">Configurar tareas</button>
       <button class="nav-btn" data-page="global-tasks">Tareas globales</button>
       <button class="nav-btn" data-page="shopping-list">Lista compra</button>
+      <button class="nav-btn" data-page="calendar">Calendario</button>
       <button class="nav-btn" data-page="history">Histórico</button>
       <button class="nav-btn" data-page="stats">Estadísticas</button>
       <button class="nav-btn" data-page="profile">Perfil</button>
@@ -278,6 +279,27 @@
 
       <div id="shopping-items-list"></div>
     </main>
+
+    <!-- -------- CALENDARIO -------- -->
+    <main id="page-calendar" class="page">
+      <div class="dashboard-header">
+        <div>
+          <h2>Calendario</h2>
+          <p class="muted">Eventos compartidos del hogar: pagos, planes, salidas. Tocá un día para ver su detalle o crear un evento.</p>
+        </div>
+      </div>
+
+      <div class="calendar-toolbar">
+        <button id="calendar-prev" class="btn ghost small" title="Mes anterior">‹</button>
+        <button id="calendar-today" class="btn ghost small">Hoy</button>
+        <button id="calendar-next" class="btn ghost small" title="Mes siguiente">›</button>
+        <span id="calendar-month-label" class="calendar-month-label"></span>
+        <button id="calendar-new-event" class="btn primary small">Nuevo evento</button>
+      </div>
+
+      <div id="calendar-weekdays" class="calendar-weekdays"></div>
+      <div id="calendar-grid" class="calendar-grid"></div>
+    </main>
   </div>
 
 </div>
@@ -424,6 +446,70 @@
   </div>
 </div>
 
+<!-- ===================== MODAL: crear/editar evento ===================== -->
+<div id="event-modal" class="modal-overlay" hidden>
+  <div class="modal card">
+    <h3 id="event-modal-title">Nuevo evento</h3>
+    <label>Título
+      <input type="text" id="event-title" placeholder="Ej: Pago alquiler" required>
+    </label>
+    <label>Descripción
+      <textarea id="event-description" rows="2" placeholder="Opcional"></textarea>
+    </label>
+    <label>Color
+      <span class="color-swatches" id="event-swatches"></span>
+      <input type="hidden" id="event-color" value="#c1652f">
+    </label>
+    <div class="event-dates-row">
+      <label>Fecha inicial
+        <input type="date" id="event-start-date">
+      </label>
+      <label>Hora inicial
+        <input type="time" id="event-start-time">
+      </label>
+    </div>
+    <div class="event-dates-row">
+      <label>Fecha final
+        <input type="date" id="event-end-date">
+      </label>
+      <label>Hora final
+        <input type="time" id="event-end-time">
+      </label>
+    </div>
+    <label class="event-all-day-label">
+      <input type="checkbox" id="event-all-day"> Todo el día
+    </label>
+    <div class="modal-actions">
+      <button id="event-cancel" class="btn ghost small">Cancelar</button>
+      <button id="event-save" class="btn primary small">Guardar</button>
+    </div>
+    <p class="error" id="event-error"></p>
+  </div>
+</div>
+
+<!-- ===================== MODAL: día (detalle de eventos) ===================== -->
+<div id="day-view-modal" class="modal-overlay" hidden>
+  <div class="modal card">
+    <h3 id="day-view-title"></h3>
+    <div id="day-view-list"></div>
+    <div class="modal-actions">
+      <button id="day-view-close" class="btn ghost small">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: eliminar evento ===================== -->
+<div id="delete-event-modal" class="modal-overlay" hidden>
+  <div class="modal card small-modal">
+    <h3>¿Eliminar el evento?</h3>
+    <p class="muted" id="delete-event-text"></p>
+    <div class="modal-actions">
+      <button id="delete-event-cancel" class="btn ghost small">Cancelar</button>
+      <button id="delete-event-confirm" class="btn danger small">Eliminar</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
 window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -433,6 +519,7 @@ OneSignalDeferred.push(function(OneSignal) {
   });
 });
 </script>
+<script src="calendar-utils.js"></script>
 <script src="app.js"></script>
 <script>
 if ('serviceWorker' in navigator) {
