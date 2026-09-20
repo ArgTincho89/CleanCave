@@ -16,7 +16,7 @@ afterAll(() => {
   if (fs.existsSync(TEST_DB)) fs.unlinkSync(TEST_DB);
 });
 
-const { app } = require('../server');
+const { app, CALENDAR_COLORS } = require('../server');
 const request = require('supertest');
 const { addDays } = require('../db/rotation');
 
@@ -1549,6 +1549,348 @@ describe('API', () => {
       const agent = await authedAgent();
       const res = await agent.delete('/api/shopping-items/nonexistent');
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Calendar events', () => {
+    function authedAgent() {
+      const agent = request.agent(app);
+      return createHousehold(agent).then(() => agent);
+    }
+
+    function validPayload(overrides = {}) {
+      return {
+        title: 'Pago alquiler',
+        description: 'Alquiler de septiembre',
+        color: '#c1652f',
+        startDate: '2026-09-20',
+        endDate: '2026-09-20',
+        startTime: null,
+        endTime: null,
+        allDay: true,
+        ...overrides
+      };
+    }
+
+    // Crea un hogar separado (Charlie/Diana) y devuelve su agente autenticado,
+    // para los tests de aislamiento entre hogares (RF-14).
+    function otherHouseholdAgent() {
+      const agent = request.agent(app);
+      return agent
+        .post('/api/auth/register-household')
+        .send({
+          householdName: 'Other Home',
+          members: [
+            { name: 'Charlie', username: 'charlie', password: 'pass' },
+            { name: 'Diana', username: 'diana', password: 'pass' }
+          ]
+        })
+        .then(() => agent);
+    }
+
+    it('GET /api/calendar-events should require auth', async () => {
+      const res = await request(app).get('/api/calendar-events?month=2026-09');
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /api/calendar-events should require auth', async () => {
+      const res = await request(app)
+        .post('/api/calendar-events')
+        .send(validPayload());
+      expect(res.status).toBe(401);
+    });
+
+    it('PUT /api/calendar-events/:id should require auth', async () => {
+      const res = await request(app)
+        .put('/api/calendar-events/some-id')
+        .send(validPayload());
+      expect(res.status).toBe(401);
+    });
+
+    it('DELETE /api/calendar-events/:id should require auth', async () => {
+      const res = await request(app).delete('/api/calendar-events/some-id');
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /api/calendar-events?month=2026-09 should return empty events list initially', async () => {
+      const agent = await authedAgent();
+      const res = await agent.get('/api/calendar-events?month=2026-09');
+      expect(res.status).toBe(200);
+      expect(res.body.events).toEqual([]);
+      expect(res.body.month).toBe('2026-09');
+      expect(res.body.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(res.body.todayMonth).toMatch(/^\d{4}-\d{2}$/);
+    });
+
+    it('GET /api/calendar-events should reject invalid month format', async () => {
+      const agent = await authedAgent();
+      for (const bad of ['2026-9', '2026-13', 'septiembre', '2026', '']) {
+        const res = await agent.get('/api/calendar-events?month=' + encodeURIComponent(bad));
+        expect(res.status).toBe(400);
+      }
+    });
+
+    it('POST /api/calendar-events should create an event with full shape and audit fields, without category (RF-02/RF-03)', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ startTime: '17:00', endTime: '18:00', allDay: false }));
+      expect(res.status).toBe(200);
+      const ev = res.body.event;
+      expect(ev.id).toBeDefined();
+      expect(ev.householdId).toBeDefined();
+      expect(ev.title).toBe('Pago alquiler');
+      expect(ev.description).toBe('Alquiler de septiembre');
+      expect(ev.color).toBe('#c1652f');
+      expect(ev.startDate).toBe('2026-09-20');
+      expect(ev.endDate).toBe('2026-09-20');
+      expect(ev.startTime).toBe('17:00');
+      expect(ev.endTime).toBe('18:00');
+      expect(ev.allDay).toBe(false);
+      expect(ev.createdByUserId).toBeDefined();
+      expect(ev.createdByUserName).toBeDefined();
+      expect(ev.createdAt).toBeDefined();
+      expect(ev.updatedAt).toBeDefined();
+      // RF-02: los eventos no llevan categoría ni clasificación de ningún tipo.
+      expect(ev.category).toBeUndefined();
+      expect(ev.type).toBeUndefined();
+    });
+
+    it('POST /api/calendar-events should store null times when absent', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ startTime: undefined, endTime: undefined }));
+      expect(res.status).toBe(200);
+      expect(res.body.event.startTime).toBeNull();
+      expect(res.body.event.endTime).toBeNull();
+    });
+
+    it('GET /api/calendar-events should return exactly one record for a six-day event (RF-07)', async () => {
+      const agent = await authedAgent();
+      const created = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ startDate: '2026-09-20', endDate: '2026-09-25' }));
+      const eventId = created.body.event.id;
+
+      const res = await agent.get('/api/calendar-events?month=2026-09');
+      expect(res.status).toBe(200);
+      expect(res.body.events).toHaveLength(1);
+      expect(res.body.events[0].id).toBe(eventId);
+      expect(res.body.events[0].startDate).toBe('2026-09-20');
+      expect(res.body.events[0].endDate).toBe('2026-09-25');
+    });
+
+    it('GET /api/calendar-events should include boundary-touching events and exclude others (RF-01)', async () => {
+      const agent = await authedAgent();
+      // A: dentro del mes; B: toca el inicio (termina el 1°); C: toca el fin
+      // (arranca el 30); D: completamente fuera (octubre).
+      const a = await agent.post('/api/calendar-events').send(validPayload({ startDate: '2026-09-10', endDate: '2026-09-15' }));
+      const b = await agent.post('/api/calendar-events').send(validPayload({ title: 'Toca inicio', startDate: '2026-08-31', endDate: '2026-09-01' }));
+      const c = await agent.post('/api/calendar-events').send(validPayload({ title: 'Toca fin', startDate: '2026-09-30', endDate: '2026-10-05' }));
+      await agent.post('/api/calendar-events').send(validPayload({ title: 'Octubre', startDate: '2026-10-01', endDate: '2026-10-03' }));
+
+      const res = await agent.get('/api/calendar-events?month=2026-09');
+      expect(res.status).toBe(200);
+      const ids = res.body.events.map(e => e.id).sort();
+      expect(ids).toEqual([a.body.event.id, b.body.event.id, c.body.event.id].sort());
+    });
+
+    it('GET /api/calendar-events should return the same single record for both months of a cross-month event (RF-08)', async () => {
+      const agent = await authedAgent();
+      const created = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ startDate: '2026-09-28', endDate: '2026-10-04' }));
+      const eventId = created.body.event.id;
+
+      const inSept = await agent.get('/api/calendar-events?month=2026-09');
+      expect(inSept.body.events).toHaveLength(1);
+      expect(inSept.body.events[0].id).toBe(eventId);
+
+      const inOct = await agent.get('/api/calendar-events?month=2026-10');
+      expect(inOct.body.events).toHaveLength(1);
+      expect(inOct.body.events[0].id).toBe(eventId);
+    });
+
+    it('POST /api/calendar-events should reject missing title (RF-15) and not create an event', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ title: undefined }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('El título es obligatorio.');
+
+      const list = await agent.get('/api/calendar-events?month=2026-09');
+      expect(list.body.events).toHaveLength(0);
+    });
+
+    it('POST /api/calendar-events should reject blank title (RF-15)', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ title: '   ' }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('El título es obligatorio.');
+    });
+
+    it('POST /api/calendar-events should reject end date before start date (RF-15)', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ startDate: '2026-09-25', endDate: '2026-09-20' }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('La fecha de fin no puede ser anterior a la de inicio.');
+    });
+
+    it('POST /api/calendar-events should reject all-day events with times (RF-15)', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ allDay: true, startTime: '17:00', endTime: '18:00' }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Un evento de todo el día no puede tener horario.');
+    });
+
+    it('POST /api/calendar-events should reject invalid date format (RF-15)', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ startDate: '2026-13-45' }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Formato de fecha inválido.');
+    });
+
+    it('POST /api/calendar-events should reject invalid time format (RF-15)', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ startTime: '25:99', endTime: '18:00' }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Formato de fecha inválido.');
+    });
+
+    it('POST /api/calendar-events should reject a color outside the palette (design.md)', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/calendar-events')
+        .send(validPayload({ color: '#ffffff' }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Color inválido.');
+    });
+
+    it('should expose the exact 10-color palette from design.md', () => {
+      expect(CALENDAR_COLORS).toEqual([
+        '#c1652f', '#7a6bb5', '#6f8f6a', '#a4512f', '#3a7d82',
+        '#b5853f', '#5d7fb0', '#8a5f9e', '#c0392b', '#7f8c6a'
+      ]);
+    });
+
+    it('PUT /api/calendar-events/:id should update event fields and keep audit identity', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/calendar-events').send(validPayload());
+      const eventId = created.body.event.id;
+
+      const res = await agent
+        .put('/api/calendar-events/' + eventId)
+        .send(validPayload({ title: 'Pago alquiler actualizado', color: '#7a6bb5', startDate: '2026-09-21', endDate: '2026-09-21' }));
+      expect(res.status).toBe(200);
+      expect(res.body.event.id).toBe(eventId);
+      expect(res.body.event.title).toBe('Pago alquiler actualizado');
+      expect(res.body.event.color).toBe('#7a6bb5');
+      expect(res.body.event.startDate).toBe('2026-09-21');
+      expect(res.body.event.createdByUserId).toBe(created.body.event.createdByUserId);
+      expect(res.body.event.createdAt).toBe(created.body.event.createdAt);
+      expect(res.body.event.updatedAt).toBeDefined();
+    });
+
+    it('PUT /api/calendar-events/:id should apply the same RF-15 contract as POST', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/calendar-events').send(validPayload());
+      const eventId = created.body.event.id;
+
+      const res = await agent
+        .put('/api/calendar-events/' + eventId)
+        .send(validPayload({ startDate: '2026-09-25', endDate: '2026-09-20' }));
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('La fecha de fin no puede ser anterior a la de inicio.');
+    });
+
+    it('PUT /api/calendar-events/:id should return 404 for non-existent event', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .put('/api/calendar-events/nonexistent')
+        .send(validPayload());
+      expect(res.status).toBe(404);
+    });
+
+    it('DELETE /api/calendar-events/:id should remove an event', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/calendar-events').send(validPayload());
+      const eventId = created.body.event.id;
+
+      const res = await agent.delete('/api/calendar-events/' + eventId);
+      expect(res.status).toBe(200);
+
+      const list = await agent.get('/api/calendar-events?month=2026-09');
+      expect(list.body.events).toHaveLength(0);
+    });
+
+    it('DELETE /api/calendar-events/:id should return 404 for non-existent event', async () => {
+      const agent = await authedAgent();
+      const res = await agent.delete('/api/calendar-events/nonexistent');
+      expect(res.status).toBe(404);
+    });
+
+    it('should not leak events across households (RF-14)', async () => {
+      const agent1 = await authedAgent();
+      const created = await agent1.post('/api/calendar-events').send(validPayload());
+
+      const agent2 = await otherHouseholdAgent();
+      const res = await agent2.get('/api/calendar-events?month=2026-09');
+      expect(res.status).toBe(200);
+      expect(res.body.events).toHaveLength(0);
+
+      // El evento del hogar 1 sigue intacto para su hogar.
+      const mine = await agent1.get('/api/calendar-events?month=2026-09');
+      expect(mine.body.events.map(e => e.id)).toContain(created.body.event.id);
+    });
+
+    it('should return 404 when editing or deleting another household event (RF-14)', async () => {
+      const agent1 = await authedAgent();
+      const created = await agent1.post('/api/calendar-events').send(validPayload());
+      const eventId = created.body.event.id;
+
+      const agent2 = await otherHouseholdAgent();
+      const put = await agent2
+        .put('/api/calendar-events/' + eventId)
+        .send(validPayload());
+      expect(put.status).toBe(404);
+
+      const del = await agent2.delete('/api/calendar-events/' + eventId);
+      expect(del.status).toBe(404);
+    });
+
+    it('should let another member of the same household see and edit the event (RF-14)', async () => {
+      const alice = await authedAgent();
+      const created = await alice.post('/api/calendar-events').send(validPayload());
+      const eventId = created.body.event.id;
+
+      // Bob es del MISMO hogar (mismo TEST_DB) y no debe tener restricción de propiedad.
+      const bob = request.agent(app);
+      await bob.post('/api/auth/login').send({ username: 'bob', password: 'pass456' });
+
+      const seen = await bob.get('/api/calendar-events?month=2026-09');
+      expect(seen.status).toBe(200);
+      expect(seen.body.events.map(e => e.id)).toContain(eventId);
+
+      const edited = await bob
+        .put('/api/calendar-events/' + eventId)
+        .send(validPayload({ title: 'Editado por Bob' }));
+      expect(edited.status).toBe(200);
+      expect(edited.body.event.title).toBe('Editado por Bob');
+
+      const deleted = await bob.delete('/api/calendar-events/' + eventId);
+      expect(deleted.status).toBe(200);
     });
   });
 });
