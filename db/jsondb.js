@@ -29,7 +29,10 @@ function defaultData() {
     globalTaskHistory: [], // { id, householdId, taskId, taskName, action, userName, userId, timestamp }
     weekProposals: [],   // { id, householdId, weekStart, proposedByUserId, proposedByUserName, changes: [{assignmentId, taskName, fromUserId, toUserId}],
                         //   status: pending|accepted|denied|applied, responses: { [userId]: 'accept'|'deny' }, createdAt, respondedAt }
-    shoppingItems: []   // { id, householdId, name, createdByUserId, createdAt }
+    shoppingItems: [],  // { id, householdId, name, createdByUserId, createdAt }
+    calendarEvents: []  // { id, householdId, title, description, color, startDate, endDate,
+                        //   startTime, endTime, allDay, createdByUserId, createdByUserName,
+                        //   createdAt, updatedAt }
   };
 }
 

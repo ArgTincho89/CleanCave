@@ -8,6 +8,7 @@ const { randomUUID } = require('crypto');
 
 const { load, transaction } = require('./db/jsondb');
 const { generateWeek, todayStr, lastCompletion, setManualCompletion } = require('./db/rotation');
+const { monthRange, monthOverlap } = require('./db/calendar');
 const { FREQUENCIES, normalizeFrequencyLabel, daysForLabel } = require('./db/frequencies');
 const { computeStats } = require('./db/stats');
 const { sendPasswordResetEmail } = require('./db/mailer');
@@ -1108,6 +1109,137 @@ app.delete('/api/shopping-items/:id', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- calendario ----------
+//
+// El calendario comparte la filosofía de la lista de compra: los eventos son
+// del hogar, no de quien los crea (RF-14). Las fechas se manejan como strings
+// 'YYYY-MM-DD' (comparación lexicográfica segura) y "hoy" lo resuelve el
+// servidor con getDateInTimezone — nunca el cliente.
+
+// Paleta de 10 colores del diseño (design.md). El cliente manda el hex y el
+// servidor valida contra este set exacto (400 "Color inválido.").
+const CALENDAR_COLORS = [
+  '#c1652f', '#7a6bb5', '#6f8f6a', '#a4512f', '#3a7d82',
+  '#b5853f', '#5d7fb0', '#8a5f9e', '#c0392b', '#7f8c6a'
+];
+
+// Lista los eventos del hogar que tocan el mes pedido. El formato se valida
+// con monthRange ('YYYY-MM', meses reales); el filtro de overlap es
+// lexicográfico e inclusivo en los bordes (RF-07/RF-08).
+app.get('/api/calendar-events', requireAuth, (req, res) => {
+  const month = req.query.month;
+  const range = monthRange(month);
+  if (!range) return res.status(400).json({ error: 'Formato de fecha inválido.' });
+  const data = load();
+  const events = (data.calendarEvents || [])
+    .filter(ev => ev.householdId === req.session.householdId && monthOverlap(ev, range.start, range.end));
+  const tz = process.env.TIMEZONE || 'America/Argentina/Buenos_Aires';
+  const local = getDateInTimezone(tz);
+  const today = `${local.year}-${String(local.month).padStart(2, '0')}-${String(local.day).padStart(2, '0')}`;
+  const todayMonth = `${local.year}-${String(local.month).padStart(2, '0')}`;
+  res.json({ events, month, today, todayMonth });
+});
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// True si el string 'YYYY-MM-DD' es una fecha real (2026-13-45 no pasa):
+// validamos por round-trip UTC para no aceptar meses/días imposibles.
+function isValidDateStr(s) {
+  if (!DATE_RE.test(s || '')) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+// POST y PUT comparten el MISMO contrato de validación (RF-15): si el payload
+// no es válido devuelve el mensaje exacto (pinned) y si es válido, null.
+function validateCalendarPayload(p) {
+  if (!p.title || !String(p.title).trim()) return 'El título es obligatorio.';
+  if (!isValidDateStr(p.startDate) || !isValidDateStr(p.endDate)) return 'Formato de fecha inválido.';
+  if (p.startTime && !TIME_RE.test(p.startTime)) return 'Formato de fecha inválido.';
+  if (p.endTime && !TIME_RE.test(p.endTime)) return 'Formato de fecha inválido.';
+  if (p.endDate < p.startDate) return 'La fecha de fin no puede ser anterior a la de inicio.';
+  if (p.allDay && (p.startTime || p.endTime)) return 'Un evento de todo el día no puede tener horario.';
+  if (!CALENDAR_COLORS.includes(p.color)) return 'Color inválido.';
+  return null;
+}
+
+// Crea un evento perteneciente al HOGAR, no a su creador (RF-14): cualquier
+// integrante lo ve y lo puede editar/borrar.
+app.post('/api/calendar-events', requireAuth, (req, res) => {
+  const payload = req.body || {};
+  const error = validateCalendarPayload(payload);
+  if (error) return res.status(400).json({ error });
+  const event = transaction(data => {
+    const user = data.users.find(u => u.id === req.session.userId);
+    const now = new Date().toISOString();
+    const ev = {
+      id: randomUUID(),
+      householdId: req.session.householdId,
+      title: String(payload.title).trim(),
+      description: payload.description || '',
+      color: payload.color,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      startTime: payload.startTime || null,
+      endTime: payload.endTime || null,
+      allDay: !!payload.allDay,
+      createdByUserId: req.session.userId,
+      createdByUserName: user ? user.name : '',
+      createdAt: now,
+      updatedAt: now
+    };
+    data.calendarEvents = data.calendarEvents || [];
+    data.calendarEvents.push(ev);
+    return ev;
+  });
+  res.json({ event });
+});
+
+// Edición con el mismo contrato de validación que POST (RF-11/RF-15): el modal
+// re-envía el evento completo. El servidor mantiene el 400 si endDate <
+// startDate aunque el frontend auto-extienda la fecha (RF-15 S2).
+app.put('/api/calendar-events/:id', requireAuth, (req, res) => {
+  const payload = req.body || {};
+  const error = validateCalendarPayload(payload);
+  if (error) return res.status(400).json({ error });
+  const event = transaction(data => {
+    const ev = (data.calendarEvents || []).find(
+      e => e.id === req.params.id && e.householdId === req.session.householdId
+    );
+    if (!ev) return null;
+    ev.title = String(payload.title).trim();
+    ev.description = payload.description || '';
+    ev.color = payload.color;
+    ev.startDate = payload.startDate;
+    ev.endDate = payload.endDate;
+    ev.startTime = payload.startTime || null;
+    ev.endTime = payload.endTime || null;
+    ev.allDay = !!payload.allDay;
+    ev.updatedAt = new Date().toISOString();
+    return ev;
+  });
+  if (!event) return res.status(404).json({ error: 'Evento no encontrado.' });
+  res.json({ event });
+});
+
+// Borrado: 404 si el evento no es de este hogar o no existe (RF-14). La
+// confirmación es responsabilidad del frontend (RF-12).
+app.delete('/api/calendar-events/:id', requireAuth, (req, res) => {
+  const ok = transaction(data => {
+    if (!data.calendarEvents) return false;
+    const idx = data.calendarEvents.findIndex(
+      e => e.id === req.params.id && e.householdId === req.session.householdId
+    );
+    if (idx === -1) return false;
+    data.calendarEvents.splice(idx, 1);
+    return true;
+  });
+  if (!ok) return res.status(404).json({ error: 'Evento no encontrado.' });
+  res.json({ ok: true });
+});
+
 // ---------- cron: generación automática semanal ----------
 // Se ejecuta los domingos a las 8:00 (timezone configurable vía TIMEZONE,
 // default America/Argentina/Buenos_Aires) y genera la lista para todos los
@@ -1138,4 +1270,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app };
+module.exports = { app, CALENDAR_COLORS };
