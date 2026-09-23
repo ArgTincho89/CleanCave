@@ -3,7 +3,7 @@ const fs = require('fs');
 
 process.env.NODE_ENV = 'test';
 
-const { setDbFile } = require('../db/jsondb');
+const { setDbFile, load, transaction } = require('../db/jsondb');
 
 const TEST_DB = path.join(__dirname, 'test-data.json');
 
@@ -1891,6 +1891,284 @@ describe('API', () => {
 
       const deleted = await bob.delete('/api/calendar-events/' + eventId);
       expect(deleted.status).toBe(200);
+    });
+  });
+
+  describe('Versus', () => {
+    function authedAgent() {
+      const agent = request.agent(app);
+      return createHousehold(agent).then(() => agent);
+    }
+
+    // Crea un hogar separado (Charlie/Diana) y devuelve su agente autenticado,
+    // para los tests de aislamiento entre hogares (RF-01/RF-03).
+    function otherHouseholdAgent() {
+      const agent = request.agent(app);
+      return agent
+        .post('/api/auth/register-household')
+        .send({
+          householdName: 'Other Home',
+          members: [
+            { name: 'Charlie', username: 'charlie', password: 'pass' },
+            { name: 'Diana', username: 'diana', password: 'pass' }
+          ]
+        })
+        .then(() => agent);
+    }
+
+    // Bob pertenece al MISMO hogar que Alice (mismo TEST_DB); se autentica
+    // aparte para los tests de ownership (RF-03).
+    function partnerAgent() {
+      const agent = request.agent(app);
+      return agent
+        .post('/api/auth/login')
+        .send({ username: 'bob', password: 'pass456' })
+        .then(() => agent);
+    }
+
+    it('GET /api/versus should require auth', async () => {
+      const res = await request(app).get('/api/versus');
+      expect(res.status).toBe(401);
+    });
+
+    it('POST /api/versus should require auth', async () => {
+      const res = await request(app).post('/api/versus').send({ text: 'X' });
+      expect(res.status).toBe(401);
+    });
+
+    it('DELETE /api/versus/:id should require auth', async () => {
+      const res = await request(app).delete('/api/versus/some-id');
+      expect(res.status).toBe(401);
+    });
+
+    it('GET /api/versus should return an empty board initially (RF-01)', async () => {
+      const agent = await authedAgent();
+      const res = await agent.get('/api/versus');
+      expect(res.status).toBe(200);
+      expect(res.body.cards).toEqual([]);
+    });
+
+    it('POST /api/versus should create a card with the server-derived partner (RF-02)', async () => {
+      const agent = await authedAgent();
+      const me = await agent.get('/api/me');
+      const alice = me.body.user;
+      const bob = me.body.members.find(m => m.name === 'Bob');
+
+      const res = await agent.post('/api/versus').send({ text: 'Deja la luz prendida' });
+      expect(res.status).toBe(201);
+      expect(res.body.card.creatorUserId).toBe(alice.id);
+      expect(res.body.card.creatorUserName).toBe('Alice');
+      expect(res.body.card.targetUserId).toBe(bob.id);
+    });
+
+    it('POST /api/versus should ignore a client-supplied targetUserId (RF-02)', async () => {
+      const agent = await authedAgent();
+      const me = await agent.get('/api/me');
+      const bob = me.body.members.find(m => m.name === 'Bob');
+
+      const res = await agent
+        .post('/api/versus')
+        .send({ text: 'X', targetUserId: 'malicious-id' });
+      expect(res.status).toBe(201);
+      expect(res.body.card.targetUserId).toBe(bob.id);
+      expect(res.body.card.targetUserId).not.toBe('malicious-id');
+    });
+
+    it('POST /api/versus should reject missing text (RF-02) and not create a card', async () => {
+      const agent = await authedAgent();
+      const res = await agent.post('/api/versus').send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Escribí la prueba sobre tu pareja.');
+
+      const list = await agent.get('/api/versus');
+      expect(list.body.cards).toHaveLength(0);
+    });
+
+    it('POST /api/versus should reject blank/whitespace text (RF-02) and not create a card', async () => {
+      const agent = await authedAgent();
+      const res = await agent.post('/api/versus').send({ text: '   ' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Escribí la prueba sobre tu pareja.');
+
+      const list = await agent.get('/api/versus');
+      expect(list.body.cards).toHaveLength(0);
+    });
+
+    it('POST /api/versus should reject text over 200 chars (RF-02) and not create a card', async () => {
+      const agent = await authedAgent();
+      const res = await agent.post('/api/versus').send({ text: 'x'.repeat(201) });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('La prueba no puede tener más de 200 caracteres.');
+
+      const list = await agent.get('/api/versus');
+      expect(list.body.cards).toHaveLength(0);
+    });
+
+    it('POST /api/versus should accept a text of exactly 200 characters (RF-02 boundary)', async () => {
+      const agent = await authedAgent();
+      const res = await agent.post('/api/versus').send({ text: 'x'.repeat(200) });
+      expect(res.status).toBe(201);
+      expect(res.body.card.text).toBe('x'.repeat(200));
+    });
+
+    it('POST /api/versus should trim the stored text (RF-02)', async () => {
+      const agent = await authedAgent();
+      const res = await agent
+        .post('/api/versus')
+        .send({ text: '  se ríe de su propio chiste  ' });
+      expect(res.status).toBe(201);
+      expect(res.body.card.text).toBe('se ríe de su propio chiste');
+
+      const list = await agent.get('/api/versus');
+      expect(list.body.cards[0].text).toBe('se ríe de su propio chiste');
+    });
+
+    it('POST /api/versus should reject a single-member household (RF-02/D3)', async () => {
+      const agent = request.agent(app);
+      await agent.post('/api/auth/register-household').send({
+        householdName: 'Solo Home',
+        members: [{ name: 'Alice', username: 'alice', password: 'pass123' }]
+      });
+
+      const res = await agent.post('/api/versus').send({ text: 'Solo yo' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Para usar Versus hace falta que el hogar tenga dos integrantes.');
+
+      const list = await agent.get('/api/versus');
+      expect(list.body.cards).toHaveLength(0);
+    });
+
+    it('GET /api/versus should return cards ascending by createdAt (RF-01)', async () => {
+      const agent = request.agent(app);
+      const reg = await createHousehold(agent);
+      const householdId = reg.body.household.id;
+
+      // Sembramos dos cards con createdAt bien distintos directo en la base
+      // (no pasan por POST para no depender del reloj del servidor).
+      transaction(data => {
+        data.versusCards = [
+          {
+            id: 'seed-oldest',
+            householdId,
+            text: 'primera',
+            creatorUserId: 'u-alice',
+            creatorUserName: 'Alice',
+            targetUserId: 'u-bob',
+            createdAt: '2026-01-01T10:00:00.000Z'
+          },
+          {
+            id: 'seed-newest',
+            householdId,
+            text: 'segunda',
+            creatorUserId: 'u-alice',
+            creatorUserName: 'Alice',
+            targetUserId: 'u-bob',
+            createdAt: '2026-01-02T10:00:00.000Z'
+          }
+        ];
+      });
+
+      const res = await agent.get('/api/versus');
+      expect(res.status).toBe(200);
+      expect(res.body.cards.map(c => c.id)).toEqual(['seed-oldest', 'seed-newest']);
+    });
+
+    it('should not leak versus cards across households (RF-01)', async () => {
+      const agent1 = await authedAgent();
+      await agent1.post('/api/versus').send({ text: 'Del hogar 1' });
+
+      const agent2 = await otherHouseholdAgent();
+      const res = await agent2.get('/api/versus');
+      expect(res.status).toBe(200);
+      expect(res.body.cards).toHaveLength(0);
+    });
+
+    it('DELETE /api/versus/:id should remove the creator card (RF-03)', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/versus').send({ text: 'Borra esto' });
+      const cardId = created.body.card.id;
+
+      const del = await agent.delete('/api/versus/' + cardId);
+      expect(del.status).toBe(200);
+      expect(del.body).toEqual({ ok: true });
+
+      const list = await agent.get('/api/versus');
+      expect(list.body.cards).toHaveLength(0);
+    });
+
+    it('DELETE /api/versus/:id should forbid the partner and keep the card (RF-03)', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/versus').send({ text: 'Se duerme en el sillón' });
+      const cardId = created.body.card.id;
+
+      const bob = await partnerAgent();
+      const del = await bob.delete('/api/versus/' + cardId);
+      expect(del.status).toBe(403);
+      expect(del.body.error).toBe('Solo quien creó la prueba puede eliminarla.');
+
+      const list = await agent.get('/api/versus');
+      expect(list.body.cards).toHaveLength(1);
+      expect(list.body.cards[0].id).toBe(cardId);
+    });
+
+    it('DELETE /api/versus/:id should return 404 for an unknown id (RF-03)', async () => {
+      const agent = await authedAgent();
+      const res = await agent.delete('/api/versus/nonexistent');
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Prueba no encontrada.');
+    });
+
+    it('should return 404 when deleting another household card and not leak it (RF-03)', async () => {
+      const agent1 = await authedAgent();
+      const created = await agent1.post('/api/versus').send({ text: 'Del hogar 1' });
+      const cardId = created.body.card.id;
+
+      const agent2 = await otherHouseholdAgent();
+      const del = await agent2.delete('/api/versus/' + cardId);
+      expect(del.status).toBe(404);
+      expect(del.body.error).toBe('Prueba no encontrada.');
+
+      const mine = await agent1.get('/api/versus');
+      expect(mine.body.cards.map(c => c.id)).toContain(cardId);
+    });
+
+    it('POST /api/versus should persist exactly the seven RF-04 fields with matching types', async () => {
+      const agent = await authedAgent();
+      const created = await agent.post('/api/versus').send({ text: 'Deja la luz prendida' });
+      expect(created.status).toBe(201);
+
+      const card = created.body.card;
+      expect(Object.keys(card).sort()).toEqual([
+        'createdAt',
+        'creatorUserId',
+        'creatorUserName',
+        'householdId',
+        'id',
+        'targetUserId',
+        'text'
+      ]);
+      expect(typeof card.id).toBe('string');
+      expect(typeof card.householdId).toBe('string');
+      expect(typeof card.text).toBe('string');
+      expect(typeof card.creatorUserId).toBe('string');
+      expect(typeof card.creatorUserName).toBe('string');
+      expect(typeof card.targetUserId).toBe('string');
+      expect(card.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+
+      // El registro persistido debe ser idéntico a lo que devolvió la API.
+      const persisted = load().versusCards[0];
+      expect(persisted).toEqual(card);
+    });
+
+    it('POST /api/versus should store script text verbatim (RF-07 — escaping is render-side)', async () => {
+      const agent = await authedAgent();
+      const xss = '<script>alert(1)</script>';
+      const created = await agent.post('/api/versus').send({ text: xss });
+      expect(created.status).toBe(201);
+
+      const list = await agent.get('/api/versus');
+      expect(list.body.cards[0].text).toBe(xss);
+      expect(load().versusCards[0].text).toBe(xss);
     });
   });
 });

@@ -1240,6 +1240,77 @@ app.delete('/api/calendar-events/:id', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- versus ----------
+//
+// Tablero de "pruebas" entre integrantes: cada card es del hogar (RF-04),
+// pero SOLO su creador puede borrarla (RF-03). El destino (targetUserId) lo
+// deriva SIEMPRE el servidor como el único integrante del hogar distinto del
+// usuario logueado (D1) — cualquier id enviado por el cliente se ignora.
+
+app.get('/api/versus', requireAuth, (req, res) => {
+  const data = load();
+  const cards = (data.versusCards || [])
+    .filter(c => c.householdId === req.session.householdId)
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+  res.json({ cards });
+});
+
+// POST: validaciones de texto primero (chequeos baratos pre-transaction,
+// espejo de server.js:1081-1082) y después la regla del hogar adentro del
+// transaction. Devuelve 201 a propósito (D2): el recurso se crea en este
+// mismo request, a diferencia del patrón 200 de shopping-items.
+app.post('/api/versus', requireAuth, (req, res) => {
+  const { text } = req.body || {};
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Escribí la prueba sobre tu pareja.' });
+  }
+  if (text.trim().length > 200) {
+    return res.status(400).json({ error: 'La prueba no puede tener más de 200 caracteres.' });
+  }
+  const result = transaction(data => {
+    const members = data.users.filter(u => u.householdId === req.session.householdId);
+    if (members.length !== 2 || !members.some(m => m.id === req.session.userId)) {
+      return { error: 'two_members' };
+    }
+    const target = members.find(m => m.id !== req.session.userId);
+    const user = members.find(m => m.id === req.session.userId);
+    const card = {
+      id: randomUUID(),
+      householdId: req.session.householdId,
+      text: text.trim(),
+      creatorUserId: req.session.userId,
+      creatorUserName: user ? user.name : '',
+      targetUserId: target.id,
+      createdAt: new Date().toISOString()
+    };
+    data.versusCards = data.versusCards || [];
+    data.versusCards.push(card);
+    return { card };
+  });
+  if (result.error === 'two_members') {
+    return res.status(400).json({ error: 'Para usar Versus hace falta que el hogar tenga dos integrantes.' });
+  }
+  res.status(201).json({ card: result.card });
+});
+
+// DELETE: patrón { error } del servidor (server.js:505-519). 404 para
+// desconocidos Y ajenos (no filtra existencia, RF-03); 403 para el mismo
+// hogar pero que no creó la card (D4). La card ajena queda intacta.
+app.delete('/api/versus/:id', requireAuth, (req, res) => {
+  const result = transaction(data => {
+    const idx = (data.versusCards || []).findIndex(
+      c => c.id === req.params.id && c.householdId === req.session.householdId
+    );
+    if (idx === -1) return { error: 'not_found' };
+    if (data.versusCards[idx].creatorUserId !== req.session.userId) return { error: 'forbidden' };
+    data.versusCards.splice(idx, 1);
+    return { ok: true };
+  });
+  if (result.error === 'not_found') return res.status(404).json({ error: 'Prueba no encontrada.' });
+  if (result.error === 'forbidden') return res.status(403).json({ error: 'Solo quien creó la prueba puede eliminarla.' });
+  res.json({ ok: true });
+});
+
 // ---------- cron: generación automática semanal ----------
 // Se ejecuta los domingos a las 8:00 (timezone configurable vía TIMEZONE,
 // default America/Argentina/Buenos_Aires) y genera la lista para todos los
