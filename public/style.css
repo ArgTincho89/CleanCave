@@ -387,6 +387,58 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .day-event-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
 .day-event-actions .btn { min-width: 80px; text-align: center; }
 
+/* === Versus === */
+/* Tablero de duelo (RF-12/D7): apilado full-width por defecto (mobile-first);
+   grid 1fr 64px 1fr con VS central recién desde 640px. Nunca columnas finas. */
+.versus-board { display: grid; grid-template-columns: 1fr; gap: 12px; max-width: 880px; }
+.versus-side {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px; min-width: 0;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.versus-side-header {
+  display: flex; align-items: center; gap: 10px;
+  padding-bottom: 10px; border-bottom: 1px dashed var(--line);
+}
+.versus-side-header .avatar { flex-shrink: 0; }
+.versus-side-header h3 {
+  margin: 0; font-size: 16px; flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.versus-side-sub { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.versus-card {
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+  background: #fffdfb; display: flex; flex-direction: column; gap: 8px;
+}
+.versus-card.armed { border-color: var(--danger); background: #fdf3f3; }
+.versus-card-text { font-size: 14px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.versus-card-meta {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  font-size: 12px; color: var(--muted);
+}
+.versus-card-author { flex: 1; min-width: 0; }
+.versus-new-pill {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--primary-dark); background: #f4e9dd; border-radius: 8px; padding: 1px 7px;
+}
+.versus-delete { margin-left: auto; }
+.versus-delete.armed { background: var(--danger); color: white; border-color: var(--danger); }
+.versus-empty { text-align: center; color: var(--muted); font-size: 13px; line-height: 1.5; padding: 18px 8px; }
+.versus-empty p { margin: 0; }
+.versus-empty-sub { font-style: italic; font-size: 12px; margin-top: 4px; }
+.versus-empty-hint { text-align: center; font-size: 13px; margin-top: 14px; }
+.versus-divider {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  flex-direction: row; font-family: 'Georgia', 'Iowan Old Style', serif;
+  font-weight: 700; font-size: 15px; letter-spacing: .1em; color: var(--primary);
+}
+.versus-divider::before, .versus-divider::after { content: ''; flex: 1; height: 2px; background: var(--line); }
+@media (min-width: 640px) {
+  .versus-board { grid-template-columns: 1fr 64px 1fr; gap: 14px; align-items: start; }
+  .versus-divider { flex-direction: column; align-self: stretch; min-height: 140px; }
+  .versus-divider::before, .versus-divider::after { height: auto; width: 2px; }
+}
+
 /* Configurar semana */
 .configure-week-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; max-width: 640px; }
 .configure-task-row {

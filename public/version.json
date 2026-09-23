@@ -1,6 +1,17 @@
 {
-  "current": "v1.6.0",
+  "current": "v1.7.0",
   "versions": [
+    {
+      "version": "v1.7.0",
+      "date": "2026-09-23",
+      "features": [
+        "Nueva sección 'Versus': tablero lúdico del hogar donde cada integrante le deja pruebas textuales al otro",
+        "Cada prueba aparece en la columna de quien la recibe: los dos lados se ven con la misma prominencia, separados por una 'VS' central",
+        "Borrado de dos pasos: solo quien creó una prueba puede eliminarla, con confirmación '¿Seguro?' que se desarma tocando otra cosa",
+        "Etiqueta 'Nueva' en las pruebas de menos de 48 horas"
+      ],
+      "fixes": []
+    },
     {
       "version": "v1.6.0",
       "date": "2026-09-20",

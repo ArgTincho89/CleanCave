@@ -1,10 +1,11 @@
-const CACHE = 'cleancache-v4';
+const CACHE = 'cleancache-v5';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/style.css',
   '/app.js',
   '/calendar-utils.js',
+  '/versus-utils.js',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',

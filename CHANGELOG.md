@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.7.0
+
+- **Versus**: nueva sección con tablero lúdico del hogar: cada integrante publica pruebas textuales sobre el otro y cada prueba aparece en la columna de quien la recibe.
+- **Duelo en columnas iguales**: los dos lados tienen la misma prominencia, separados por una "VS" central en pantallas de 640px o más (en celular se apilan full-width).
+- **Borrado de dos pasos**: solo quien creó una prueba puede eliminarla, con botón que se arma ("¿Seguro?") y se desarma si tocás otra cosa o pasan unos segundos.
+- **Etiqueta "Nueva"**: las pruebas de menos de 48 horas muestran un pill de novedad.
+- **Seguridad**: el texto de las pruebas se escapa antes de renderizarse: el contenido ajeno nunca genera HTML (se muestra como texto literal).
+- **PWA**: caché actualizada a v5 (incluye el nuevo helper de versus).
+
 ## v1.6.0
 
 - **Calendario**: nueva sección con calendario mensual compartido del hogar. Eventos de día completo, con horario o de varios días, sin categorías ni tipos predefinidos.

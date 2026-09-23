@@ -108,6 +108,7 @@
       <button class="nav-btn" data-page="global-tasks">Tareas globales</button>
       <button class="nav-btn" data-page="shopping-list">Lista compra</button>
       <button class="nav-btn" data-page="calendar">Calendario</button>
+      <button class="nav-btn" data-page="versus">Versus</button>
       <button class="nav-btn" data-page="history">Histórico</button>
       <button class="nav-btn" data-page="stats">Estadísticas</button>
       <button class="nav-btn" data-page="profile">Perfil</button>
@@ -299,6 +300,30 @@
 
       <div id="calendar-weekdays" class="calendar-weekdays"></div>
       <div id="calendar-grid" class="calendar-grid"></div>
+    </main>
+
+    <!-- -------- VERSUS -------- -->
+    <main id="page-versus" class="page">
+      <div class="dashboard-header">
+        <div>
+          <h2>Versus ⚔️</h2>
+          <p class="muted">Evidencia lúdica del hogar: cada uno le deja pruebas al otro y aparecen en su columna. Solo quien crea una prueba puede borrarla.</p>
+        </div>
+        <button id="btn-versus-add" class="btn primary">+ Agregar</button>
+      </div>
+
+      <form id="form-new-versus-card" class="new-task-form card" hidden>
+        <textarea id="new-versus-card-text" maxlength="200" rows="2" placeholder="Escribí la prueba sobre tu pareja… (máx. 200 caracteres)"></textarea>
+        <button type="submit" class="btn primary">Publicar</button>
+      </form>
+      <p class="error" id="versus-error"></p>
+
+      <div id="versus-board" class="versus-board">
+        <section class="versus-side" id="versus-side-me" aria-label="Pruebas sobre mí"></section>
+        <div class="versus-divider" role="separator">VS</div>
+        <section class="versus-side" id="versus-side-other" aria-label="Pruebas sobre mi pareja"></section>
+      </div>
+      <p class="muted versus-empty-hint" id="versus-empty-hint" hidden>Nada por ahora: arrancá vos con la primera prueba.</p>
     </main>
   </div>
 
@@ -520,6 +545,7 @@ OneSignalDeferred.push(function(OneSignal) {
 });
 </script>
 <script src="calendar-utils.js"></script>
+<script src="versus-utils.js"></script>
 <script src="app.js"></script>
 <script>
 if ('serviceWorker' in navigator) {

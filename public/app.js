@@ -1,4 +1,4 @@
-const state = { me: null, currentWeekStart: null, weekData: null, swapContext: null, pendingComplete: null, lastActiveNav: 'dashboard', globalTasks: [], configureWeek: { assignments: [], pendingChanges: {} }, calendar: { month: null, today: null, todayMonth: null, events: [], dayViewDate: null, editingId: null, deletingId: null } };
+const state = { me: null, currentWeekStart: null, weekData: null, swapContext: null, pendingComplete: null, lastActiveNav: 'dashboard', globalTasks: [], configureWeek: { assignments: [], pendingChanges: {} }, calendar: { month: null, today: null, todayMonth: null, events: [], dayViewDate: null, editingId: null, deletingId: null }, versus: { cards: [], armedDeleteId: null } };
 
 const AVATAR_COLORS = ['#c1652f', '#6f8f6a', '#7a6bb5', '#c14b4b', '#3f7a9e'];
 const CHART_COLORS = ['#c1652f', '#6f8f6a', '#7a6bb5', '#c14b4b', '#3f7a9e', '#e0a458', '#4a8f8b', '#a45c8c'];
@@ -133,6 +133,7 @@ function showPage(pageId, navBtnPage) {
   if (pageId === 'global-tasks') { loadGlobalTasks(); loadGlobalTasksHistory(); }
   if (pageId === 'shopping-list') loadShoppingList();
   if (pageId === 'calendar') loadCalendar();
+  if (pageId === 'versus') loadVersus();
   if (pageId === 'history') loadHistoryWeeks();
   if (pageId === 'stats') loadStats();
   if (pageId === 'configure-week') loadConfigureWeek();
@@ -1842,6 +1843,155 @@ document.getElementById('calendar-new-event').addEventListener('click', () => {
   document.getElementById(id).addEventListener('click', (e) => {
     if (e.target === e.currentTarget) document.getElementById(id).hidden = true;
   });
+});
+
+// ---------------- Versus ----------------
+//
+// Tablero lúdico del hogar: cada integrante deja pruebas textuales sobre el
+// otro y cada prueba aparece en la columna de QUIEN LA RECIBE (RF-06). El
+// target lo decide SIEMPRE el server (RF-02/D1); acá solo se reparte por
+// targetUserId: la columna de la izquierda ("me") muestra las pruebas que le
+// hicieron al usuario actual y la derecha ("other") las de su pareja (D6).
+// Borrado de dos pasos inline (D9): primer toque arma "¿Seguro?" y el segundo
+// confirma; cualquier otra interacción o un timeout de ~3 s lo desarma
+// (RF-08). El texto de las cards se escapa ANTES de insertarse (RF-07) usando
+// escapeHtml de versus-utils.js (misma implementación que app.js:1576).
+
+async function loadVersus() {
+  const errEl = document.getElementById('versus-error');
+  try {
+    const { cards } = await api('/versus');
+    state.versus.cards = cards;
+    errEl.textContent = '';
+    renderVersusBoard();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+
+// Pareja derivada en cada render desde state.me.members vivo (D6: nunca
+// cachear — los members solo cambian al bootear, pero el perfil puede editarse).
+function versusOtherMember() {
+  if (!state.me) return null;
+  return state.me.members.find(m => m.id !== state.me.user.id) || null;
+}
+
+function renderVersusBoard() {
+  const me = state.me.user;
+  const other = versusOtherMember();
+  const emptyHint = document.getElementById('versus-empty-hint');
+  if (emptyHint) emptyHint.hidden = state.versus.cards.length > 0;
+  const cardsFor = targetId => state.versus.cards
+    .filter(c => c.targetUserId === targetId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  renderVersusSide('versus-side-me', me, cardsFor(me.id), 'sobre vos');
+  renderVersusSide('versus-side-other', other, other ? cardsFor(other.id) : [], other ? 'sobre tu pareja' : '');
+}
+
+function renderVersusSide(sideId, member, cards, subLabel) {
+  const side = document.getElementById(sideId);
+  if (!side) return;
+  const name = member ? member.name : '—';
+  let body;
+  if (!member) {
+    body = '<div class="versus-empty"><p>No se puede armar el duelo: falta el otro integrante del hogar.</p></div>';
+  } else if (cards.length === 0) {
+    body = `
+      <div class="versus-empty">
+        <p>Todavía no hay pruebas sobre ${escapeHtml(name)}…</p>
+        <p class="versus-empty-sub">${sideId === 'versus-side-me' ? 'Disfrutalo, dura poco. 😌' : 'Dale, tocá "Agregar". 😏'}</p>
+      </div>`;
+  } else {
+    body = cards.map(card => {
+      const isMine = card.creatorUserId === state.me.user.id;
+      const isArmed = state.versus.armedDeleteId === card.id;
+      return `
+        <article class="versus-card${isArmed ? ' armed' : ''}">
+          <div class="versus-card-text">${escapeHtml(card.text)}</div>
+          <div class="versus-card-meta">
+            ${vsIsNewCard(card, Date.now()) ? '<span class="versus-new-pill">Nueva</span>' : ''}
+            <span class="versus-card-author">por ${escapeHtml(card.creatorUserName)}</span>
+            ${isMine ? `<button class="btn ghost small versus-delete${isArmed ? ' armed' : ''}" data-id="${card.id}">${isArmed ? '¿Seguro?' : 'Eliminar'}</button>` : ''}
+          </div>
+        </article>`;
+    }).join('');
+  }
+  side.innerHTML = `
+    <header class="versus-side-header">
+      <span class="avatar small" style="background:${colorFor(name)}">${initials(name)}</span>
+      <h3>${escapeHtml(name)}</h3>
+      ${subLabel ? `<span class="versus-side-sub">${subLabel}</span>` : ''}
+    </header>
+    ${body}`;
+}
+
+// Desarma el borrado pendiente: limpia estado, timeout y el botón pintado.
+function disarmVersusDelete() {
+  const btn = document.querySelector('.versus-delete.armed');
+  if (btn) { btn.classList.remove('armed'); btn.textContent = 'Eliminar'; }
+  if (state.versus.armedTimeout) clearTimeout(state.versus.armedTimeout);
+  state.versus.armedTimeout = null;
+  state.versus.armedDeleteId = null;
+}
+
+document.getElementById('versus-board').addEventListener('click', async e => {
+  const btn = e.target.closest('.versus-delete');
+  if (!btn) {
+    disarmVersusDelete();
+    return;
+  }
+  const id = btn.dataset.id;
+  if (state.versus.armedDeleteId === id) {
+    disarmVersusDelete();
+    try {
+      await api('/versus/' + id, { method: 'DELETE' });
+      await loadVersus();
+    } catch (err) {
+      document.getElementById('versus-error').textContent = err.message;
+    }
+    return;
+  }
+  disarmVersusDelete();
+  state.versus.armedDeleteId = id;
+  btn.classList.add('armed');
+  btn.textContent = '¿Seguro?';
+  state.versus.armedTimeout = setTimeout(disarmVersusDelete, 3000);
+});
+
+// Cualquier otro clic de la app desarma el borrado pendiente (RF-08).
+document.addEventListener('click', e => {
+  if (state.versus.armedDeleteId && !e.target.closest('#versus-board')) disarmVersusDelete();
+});
+
+document.getElementById('btn-versus-add').addEventListener('click', () => {
+  const form = document.getElementById('form-new-versus-card');
+  form.hidden = !form.hidden;
+  if (!form.hidden) document.getElementById('new-versus-card-text').focus();
+});
+
+document.getElementById('form-new-versus-card').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errEl = document.getElementById('versus-error');
+  errEl.textContent = '';
+  const textarea = document.getElementById('new-versus-card-text');
+  const submitBtn = e.currentTarget.querySelector('button[type="submit"]');
+  const text = textarea.value.trim();
+  if (!text) {
+    errEl.textContent = 'Escribí la prueba sobre tu pareja.';
+    return;
+  }
+  submitBtn.disabled = true; // patrón de carga: deshabilitar mientras vuela el POST
+  try {
+    await api('/versus', { method: 'POST', body: JSON.stringify({ text }) });
+    textarea.value = '';
+    e.currentTarget.hidden = true;
+    await loadVersus();
+  } catch (err) {
+    // Los mensajes del server son los pinned de la spec (RF-10): tal cual.
+    errEl.textContent = err.message;
+  } finally {
+    submitBtn.disabled = false;
+  }
 });
 
 boot();
