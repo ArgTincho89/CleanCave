@@ -1,6 +1,18 @@
 {
-  "current": "v1.7.0",
+  "current": "v1.7.1",
   "versions": [
+    {
+      "version": "v1.7.1",
+      "date": "2026-09-23",
+      "features": [
+        "Versus: tablero en forma de tabla 'T' — nombres con avatar en el yugo horizontal (con 'VS' al medio) y las pruebas en dos columnas separadas por una línea central",
+        "Textos de Versus simplificados: subtítulo 'La batalla por ver quién es más de Virgo', placeholder 'Escribí una prueba…' y sin mensajes de estado vacío del tablero"
+      ],
+      "fixes": [
+        "Publicar una prueba ya no falla con 'Cannot set properties of null (setting \"hidden\")': todos los accesos DOM del módulo Versus verifican que el elemento exista",
+        "Service worker actualizado a cleancache-v6 para forzar la descarga limpia de los assets"
+      ]
+    },
     {
       "version": "v1.7.0",
       "date": "2026-09-23",

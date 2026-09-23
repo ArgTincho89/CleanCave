@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.7.1
+
+- **Versus — tabla en T**: el tablero ahora es una tabla en forma de T: los nombres con avatar arriba en el yugo horizontal (con "VS" al medio) y las pruebas en dos columnas debajo, separadas por una línea central.
+- **Textos de Versus simplificados**: subtítulo "La batalla por ver quién es más de Virgo", placeholder "Escribí una prueba…", sin rótulos por persona bajo los nombres y sin los mensajes de estado vacío del tablero.
+- **Fix de estabilidad al publicar**: todos los accesos DOM del módulo Versus tienen guards contra null; ya no explota "Cannot set properties of null (setting \"hidden\")" al publicar una prueba (típico de HTML/JS mezclados entre deploys).
+- **PWA**: caché actualizada a v6 para forzar la descarga limpia de los assets.
+
 ## v1.7.0
 
 - **Versus**: nueva sección con tablero lúdico del hogar: cada integrante publica pruebas textuales sobre el otro y cada prueba aparece en la columna de quien la recibe.

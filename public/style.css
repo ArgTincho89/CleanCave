@@ -388,24 +388,31 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .day-event-actions .btn { min-width: 80px; text-align: center; }
 
 /* === Versus === */
-/* Tablero de duelo (RF-12/D7): apilado full-width por defecto (mobile-first);
-   grid 1fr 64px 1fr con VS central recién desde 640px. Nunca columnas finas. */
-.versus-board { display: grid; grid-template-columns: 1fr; gap: 12px; max-width: 880px; }
+/* Tablero en forma de T: yugo horizontal (headers con avatar/nombre y "VS"
+   central) y palo vertical que separa las dos columnas de tarjetas.
+   Mobile-first: una sola columna; la T se arma desde 640px. */
+.versus-board { display: flex; flex-direction: column; gap: 14px; max-width: 880px; }
+.versus-head {
+  display: grid; grid-template-columns: 1fr; gap: 8px; align-items: center;
+}
+.versus-head-cell {
+  display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0;
+}
+.versus-head-cell h3 {
+  margin: 0; font-size: 16px; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.versus-head-vs {
+  text-align: center; font-weight: 700; font-size: 14px;
+  letter-spacing: .1em; color: var(--primary);
+}
+.versus-body { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.versus-body-line { display: none; }
 .versus-side {
   background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 16px; min-width: 0;
   display: flex; flex-direction: column; gap: 12px;
 }
-.versus-side-header {
-  display: flex; align-items: center; gap: 10px;
-  padding-bottom: 10px; border-bottom: 1px dashed var(--line);
-}
-.versus-side-header .avatar { flex-shrink: 0; }
-.versus-side-header h3 {
-  margin: 0; font-size: 16px; flex: 1; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.versus-side-sub { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .versus-card {
   border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
   background: #fffdfb; display: flex; flex-direction: column; gap: 8px;
@@ -423,20 +430,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 }
 .versus-delete { margin-left: auto; }
 .versus-delete.armed { background: var(--danger); color: white; border-color: var(--danger); }
-.versus-empty { text-align: center; color: var(--muted); font-size: 13px; line-height: 1.5; padding: 18px 8px; }
-.versus-empty p { margin: 0; }
-.versus-empty-sub { font-style: italic; font-size: 12px; margin-top: 4px; }
-.versus-empty-hint { text-align: center; font-size: 13px; margin-top: 14px; }
-.versus-divider {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  flex-direction: row; font-family: 'Georgia', 'Iowan Old Style', serif;
-  font-weight: 700; font-size: 15px; letter-spacing: .1em; color: var(--primary);
-}
-.versus-divider::before, .versus-divider::after { content: ''; flex: 1; height: 2px; background: var(--line); }
 @media (min-width: 640px) {
-  .versus-board { grid-template-columns: 1fr 64px 1fr; gap: 14px; align-items: start; }
-  .versus-divider { flex-direction: column; align-self: stretch; min-height: 140px; }
-  .versus-divider::before, .versus-divider::after { height: auto; width: 2px; }
+  .versus-head {
+    grid-template-columns: 1fr 64px 1fr; gap: 14px;
+    border-bottom: 1px solid var(--line); padding-bottom: 12px;
+  }
+  .versus-body { grid-template-columns: 1fr 24px 1fr; gap: 14px; align-items: stretch; }
+  /* Palo vertical de la T */
+  .versus-body-line { display: block; background: var(--line); border-radius: 2px; align-self: stretch; }
 }
 
 /* Configurar semana */

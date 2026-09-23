@@ -1856,16 +1856,18 @@ document.getElementById('calendar-new-event').addEventListener('click', () => {
 // confirma; cualquier otra interacción o un timeout de ~3 s lo desarma
 // (RF-08). El texto de las cards se escapa ANTES de insertarse (RF-07) usando
 // escapeHtml de versus-utils.js (misma implementación que app.js:1576).
+// TODOS los accesos DOM del módulo tienen guard contra null: un HTML viejo
+// cacheado por el service worker no debe romper el boot ni el publish.
 
 async function loadVersus() {
   const errEl = document.getElementById('versus-error');
   try {
     const { cards } = await api('/versus');
     state.versus.cards = cards;
-    errEl.textContent = '';
+    if (errEl) errEl.textContent = '';
     renderVersusBoard();
   } catch (err) {
-    errEl.textContent = err.message;
+    if (errEl) errEl.textContent = err.message;
   }
 }
 
@@ -1879,50 +1881,49 @@ function versusOtherMember() {
 function renderVersusBoard() {
   const me = state.me.user;
   const other = versusOtherMember();
-  const emptyHint = document.getElementById('versus-empty-hint');
-  if (emptyHint) emptyHint.hidden = state.versus.cards.length > 0;
   const cardsFor = targetId => state.versus.cards
     .filter(c => c.targetUserId === targetId)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  renderVersusSide('versus-side-me', me, cardsFor(me.id), 'sobre vos');
-  renderVersusSide('versus-side-other', other, other ? cardsFor(other.id) : [], other ? 'sobre tu pareja' : '');
+  // Headers de la tabla (yugo de la T). Sin pareja → nombre '—'.
+  renderVersusHead('versus-head-me', me);
+  renderVersusHead('versus-head-other', other);
+  // Cuerpo de la T: dos columnas de tarjetas.
+  renderVersusSide('versus-side-me', cardsFor(me.id));
+  renderVersusSide('versus-side-other', other ? cardsFor(other.id) : []);
 }
 
-function renderVersusSide(sideId, member, cards, subLabel) {
+// Pinta una celda del header de la tabla: avatar + nombre.
+function renderVersusHead(headId, member) {
+  const head = document.getElementById(headId);
+  if (!head) return;
+  const name = member && member.name ? member.name : '—';
+  head.innerHTML = `
+    <span class="avatar small" style="background:${colorFor(name)}">${initials(name)}</span>
+    <h3>${escapeHtml(name)}</h3>`;
+}
+
+// Pinta las tarjetas de un lado. Sin tarjetas → queda vacío (sin copy de
+// estado vacío: lo pidió el usuario).
+function renderVersusSide(sideId, cards) {
   const side = document.getElementById(sideId);
   if (!side) return;
-  const name = member ? member.name : '—';
-  let body;
-  if (!member) {
-    body = '<div class="versus-empty"><p>No se puede armar el duelo: falta el otro integrante del hogar.</p></div>';
-  } else if (cards.length === 0) {
-    body = `
-      <div class="versus-empty">
-        <p>Todavía no hay pruebas sobre ${escapeHtml(name)}…</p>
-        <p class="versus-empty-sub">${sideId === 'versus-side-me' ? 'Disfrutalo, dura poco. 😌' : 'Dale, tocá "Agregar". 😏'}</p>
-      </div>`;
-  } else {
-    body = cards.map(card => {
-      const isMine = card.creatorUserId === state.me.user.id;
-      const isArmed = state.versus.armedDeleteId === card.id;
-      return `
-        <article class="versus-card${isArmed ? ' armed' : ''}">
-          <div class="versus-card-text">${escapeHtml(card.text)}</div>
-          <div class="versus-card-meta">
-            ${vsIsNewCard(card, Date.now()) ? '<span class="versus-new-pill">Nueva</span>' : ''}
-            <span class="versus-card-author">por ${escapeHtml(card.creatorUserName)}</span>
-            ${isMine ? `<button class="btn ghost small versus-delete${isArmed ? ' armed' : ''}" data-id="${card.id}">${isArmed ? '¿Seguro?' : 'Eliminar'}</button>` : ''}
-          </div>
-        </article>`;
-    }).join('');
+  if (cards.length === 0) {
+    side.innerHTML = '';
+    return;
   }
-  side.innerHTML = `
-    <header class="versus-side-header">
-      <span class="avatar small" style="background:${colorFor(name)}">${initials(name)}</span>
-      <h3>${escapeHtml(name)}</h3>
-      ${subLabel ? `<span class="versus-side-sub">${subLabel}</span>` : ''}
-    </header>
-    ${body}`;
+  side.innerHTML = cards.map(card => {
+    const isMine = card.creatorUserId === state.me.user.id;
+    const isArmed = state.versus.armedDeleteId === card.id;
+    return `
+      <article class="versus-card${isArmed ? ' armed' : ''}">
+        <div class="versus-card-text">${escapeHtml(card.text)}</div>
+        <div class="versus-card-meta">
+          ${vsIsNewCard(card, Date.now()) ? '<span class="versus-new-pill">Nueva</span>' : ''}
+          <span class="versus-card-author">por ${escapeHtml(card.creatorUserName)}</span>
+          ${isMine ? `<button class="btn ghost small versus-delete${isArmed ? ' armed' : ''}" data-id="${card.id}">${isArmed ? '¿Seguro?' : 'Eliminar'}</button>` : ''}
+        </div>
+      </article>`;
+  }).join('');
 }
 
 // Desarma el borrado pendiente: limpia estado, timeout y el botón pintado.
@@ -1934,7 +1935,8 @@ function disarmVersusDelete() {
   state.versus.armedDeleteId = null;
 }
 
-document.getElementById('versus-board').addEventListener('click', async e => {
+const versusBoardEl = document.getElementById('versus-board');
+if (versusBoardEl) versusBoardEl.addEventListener('click', async e => {
   const btn = e.target.closest('.versus-delete');
   if (!btn) {
     disarmVersusDelete();
@@ -1947,7 +1949,8 @@ document.getElementById('versus-board').addEventListener('click', async e => {
       await api('/versus/' + id, { method: 'DELETE' });
       await loadVersus();
     } catch (err) {
-      document.getElementById('versus-error').textContent = err.message;
+      const errEl = document.getElementById('versus-error');
+      if (errEl) errEl.textContent = err.message;
     }
     return;
   }
@@ -1960,37 +1963,45 @@ document.getElementById('versus-board').addEventListener('click', async e => {
 
 // Cualquier otro clic de la app desarma el borrado pendiente (RF-08).
 document.addEventListener('click', e => {
-  if (state.versus.armedDeleteId && !e.target.closest('#versus-board')) disarmVersusDelete();
+  const insideBoard = e.target && e.target.closest && e.target.closest('#versus-board');
+  if (state.versus.armedDeleteId && !insideBoard) disarmVersusDelete();
 });
 
-document.getElementById('btn-versus-add').addEventListener('click', () => {
+const versusAddBtn = document.getElementById('btn-versus-add');
+if (versusAddBtn) versusAddBtn.addEventListener('click', () => {
   const form = document.getElementById('form-new-versus-card');
+  if (!form) return;
   form.hidden = !form.hidden;
-  if (!form.hidden) document.getElementById('new-versus-card-text').focus();
+  if (!form.hidden) {
+    const textarea = document.getElementById('new-versus-card-text');
+    if (textarea) textarea.focus();
+  }
 });
 
-document.getElementById('form-new-versus-card').addEventListener('submit', async e => {
+const versusForm = document.getElementById('form-new-versus-card');
+if (versusForm) versusForm.addEventListener('submit', async e => {
   e.preventDefault();
+  const form = e.currentTarget;
   const errEl = document.getElementById('versus-error');
-  errEl.textContent = '';
+  if (errEl) errEl.textContent = '';
   const textarea = document.getElementById('new-versus-card-text');
-  const submitBtn = e.currentTarget.querySelector('button[type="submit"]');
-  const text = textarea.value.trim();
+  const submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+  const text = textarea ? textarea.value.trim() : '';
   if (!text) {
-    errEl.textContent = 'Escribí la prueba sobre tu pareja.';
+    if (errEl) errEl.textContent = 'Escribí una prueba.';
     return;
   }
-  submitBtn.disabled = true; // patrón de carga: deshabilitar mientras vuela el POST
+  if (submitBtn) submitBtn.disabled = true; // patrón de carga: deshabilitar mientras vuela el POST
   try {
     await api('/versus', { method: 'POST', body: JSON.stringify({ text }) });
-    textarea.value = '';
-    e.currentTarget.hidden = true;
+    if (textarea) textarea.value = '';
+    if (form) form.hidden = true;
     await loadVersus();
   } catch (err) {
     // Los mensajes del server son los pinned de la spec (RF-10): tal cual.
-    errEl.textContent = err.message;
+    if (errEl) errEl.textContent = err.message;
   } finally {
-    submitBtn.disabled = false;
+    if (submitBtn) submitBtn.disabled = false;
   }
 });
 

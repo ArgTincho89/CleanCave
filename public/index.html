@@ -306,24 +306,30 @@
     <main id="page-versus" class="page">
       <div class="dashboard-header">
         <div>
-          <h2>Versus ⚔️</h2>
-          <p class="muted">Evidencia lúdica del hogar: cada uno le deja pruebas al otro y aparecen en su columna. Solo quien crea una prueba puede borrarla.</p>
+          <h2>Versus</h2>
+          <p class="muted">La batalla por ver quién es más de Virgo.</p>
         </div>
         <button id="btn-versus-add" class="btn primary">+ Agregar</button>
       </div>
 
       <form id="form-new-versus-card" class="new-task-form card" hidden>
-        <textarea id="new-versus-card-text" maxlength="200" rows="2" placeholder="Escribí la prueba sobre tu pareja… (máx. 200 caracteres)"></textarea>
+        <textarea id="new-versus-card-text" maxlength="200" rows="2" placeholder="Escribí una prueba… (máx. 200 caracteres)"></textarea>
         <button type="submit" class="btn primary">Publicar</button>
       </form>
       <p class="error" id="versus-error"></p>
 
       <div id="versus-board" class="versus-board">
-        <section class="versus-side" id="versus-side-me" aria-label="Pruebas sobre mí"></section>
-        <div class="versus-divider" role="separator">VS</div>
-        <section class="versus-side" id="versus-side-other" aria-label="Pruebas sobre mi pareja"></section>
+        <div class="versus-head" role="row">
+          <div class="versus-head-cell" id="versus-head-me" role="cell" aria-label="Pruebas sobre mí"></div>
+          <div class="versus-head-vs" role="separator">VS</div>
+          <div class="versus-head-cell" id="versus-head-other" role="cell" aria-label="Pruebas sobre mi pareja"></div>
+        </div>
+        <div class="versus-body" role="rowgroup">
+          <section class="versus-side" id="versus-side-me" aria-label="Pruebas sobre mí"></section>
+          <div class="versus-body-line" role="separator"></div>
+          <section class="versus-side" id="versus-side-other" aria-label="Pruebas sobre mi pareja"></section>
+        </div>
       </div>
-      <p class="muted versus-empty-hint" id="versus-empty-hint" hidden>Nada por ahora: arrancá vos con la primera prueba.</p>
     </main>
   </div>
 
