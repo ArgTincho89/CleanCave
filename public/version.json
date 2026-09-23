@@ -1,6 +1,17 @@
 {
-  "current": "v1.7.1",
+  "current": "v1.7.2",
   "versions": [
+    {
+      "version": "v1.7.2",
+      "date": "2026-09-23",
+      "features": [
+        "Versus: tablero VS de dos columnas verticales — el nombre al tope de cada columna, la línea central es contínua de arriba a abajo (pasa entre los nombres y las tarjetas) y hay separación horizontal bajo las cabeceras",
+        "Las columnas del tablero crecen de forma independiente: cada lado muestra sus tarjetas sin rellenar el alto de la columna vecina"
+      ],
+      "fixes": [
+        "Service worker actualizado a cleancache-v7 para forzar la descarga limpia de los assets"
+      ]
+    },
     {
       "version": "v1.7.1",
       "date": "2026-09-23",

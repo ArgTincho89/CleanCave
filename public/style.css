@@ -388,13 +388,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .day-event-actions .btn { min-width: 80px; text-align: center; }
 
 /* === Versus === */
-/* Tablero en forma de T: yugo horizontal (headers con avatar/nombre y "VS"
-   central) y palo vertical que separa las dos columnas de tarjetas.
-   Mobile-first: una sola columna; la T se arma desde 640px. */
+/* Tablero VS: dos columnas verticales de igual ancho (izquierda = quien
+   mira, derecha = la otra persona), nombre al tope de cada columna y una
+   línea vertical central CONTINUA que recorre todo el alto del tablero,
+   pasando entre los nombres y entre las tarjetas. Separación horizontal
+   debajo de los nombres que diferencia la cabecera del contenido.
+   Mobile-first: una sola columna; el tablero se arma desde 640px. */
 .versus-board { display: flex; flex-direction: column; gap: 14px; max-width: 880px; }
-.versus-head {
-  display: grid; grid-template-columns: 1fr; gap: 8px; align-items: center;
-}
 .versus-head-cell {
   display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0;
 }
@@ -402,12 +402,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   margin: 0; font-size: 16px; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.versus-head-vs {
-  text-align: center; font-weight: 700; font-size: 14px;
-  letter-spacing: .1em; color: var(--primary);
-}
-.versus-body { display: grid; grid-template-columns: 1fr; gap: 12px; }
-.versus-body-line { display: none; }
+.versus-line { display: none; }
 .versus-side {
   background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 16px; min-width: 0;
@@ -431,13 +426,33 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .versus-delete { margin-left: auto; }
 .versus-delete.armed { background: var(--danger); color: white; border-color: var(--danger); }
 @media (min-width: 640px) {
-  .versus-head {
-    grid-template-columns: 1fr 64px 1fr; gap: 14px;
-    border-bottom: 1px solid var(--line); padding-bottom: 12px;
+  /* Grid de 5 hijos: cabeceras en fila 1, lados en fila 2, línea en ambas.
+     La línea vertical central atraviesa cabecera y contenido (continua). */
+  .versus-board {
+    display: grid;
+    grid-template-columns: 1fr 24px 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 14px;
+    row-gap: 16px;
+    align-items: start;
   }
-  .versus-body { grid-template-columns: 1fr 24px 1fr; gap: 14px; align-items: stretch; }
-  /* Palo vertical de la T */
-  .versus-body-line { display: block; background: var(--line); border-radius: 2px; align-self: stretch; }
+  .versus-head-cell {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 12px;
+  }
+  .versus-head-cell#versus-head-me { grid-column: 1; grid-row: 1; }
+  .versus-head-cell#versus-head-other { grid-column: 3; grid-row: 1; }
+  /* Línea vertical central continua: arranca entre los nombres y baja */
+  .versus-line {
+    display: block;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    background: var(--line);
+    border-radius: 2px;
+    align-self: stretch;
+  }
+  .versus-side#versus-side-me { grid-column: 1; grid-row: 2; }
+  .versus-side#versus-side-other { grid-column: 3; grid-row: 2; }
 }
 
 /* Configurar semana */

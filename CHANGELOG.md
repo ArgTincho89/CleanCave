@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.7.2
+
+- **Versus — tablero VS en columnas**: el tablero ahora es un enfrentamiento de dos columnas verticales de igual ancho, cada una con el nombre del usuario al tope. La línea vertical central es contínua de arriba a abajo: pasa entre los nombres, bajo la separación horizontal y entre las tarjetas. Se reemplazó el "VS" de texto central por la línea contínua.
+- **Columnas independientes**: cada columna crece verticalmente por su cuenta — la columna con más tarjetas no estira a la otra y la línea central acompaña el alto total.
+- **PWA**: caché actualizada a v7 para forzar la descarga limpia de los assets.
+
 ## v1.7.1
 
 - **Versus — tabla en T**: el tablero ahora es una tabla en forma de T: los nombres con avatar arriba en el yugo horizontal (con "VS" al medio) y las pruebas en dos columnas debajo, separadas por una línea central.
