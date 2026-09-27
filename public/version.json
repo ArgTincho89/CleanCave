@@ -1,6 +1,17 @@
 {
-  "current": "v1.7.2",
+  "current": "v1.7.3",
   "versions": [
+    {
+      "version": "v1.7.3",
+      "date": "2026-09-27",
+      "features": [
+        "Calendario: al abrir el detalle de un día que ya tiene eventos, ahora aparece también el botón 'Nuevo evento'",
+        "Ese botón abre el formulario con la fecha inicial y la fecha final ya prellenadas con ese mismo día, sin pasar por la barra de arriba"
+      ],
+      "fixes": [
+        "Service worker actualizado a cleancache-v8 para forzar la descarga limpia de los assets"
+      ]
+    },
     {
       "version": "v1.7.2",
       "date": "2026-09-23",

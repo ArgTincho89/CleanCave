@@ -1792,6 +1792,20 @@ document.getElementById('day-view-close').addEventListener('click', () => {
   document.getElementById('day-view-modal').hidden = true;
 });
 
+// "Nuevo evento" desde el day view: cierra el detalle del día y abre el
+// formulario pre-llenado con ESE día (RF-04, path "desde el detalle del día").
+// Guard contra null a propósito: si el service worker sirve un index.html viejo
+// sin este botón, el listener no se registra y el resto del módulo de
+// calendario sigue funcionando (mismo criterio que el módulo Versus).
+const dayViewNewEventBtn = document.getElementById('day-view-new-event');
+if (dayViewNewEventBtn) {
+  dayViewNewEventBtn.addEventListener('click', () => {
+    const date = state.calendar.dayViewDate || state.calendar.today;
+    document.getElementById('day-view-modal').hidden = true;
+    openEventModal(date, null);
+  });
+}
+
 // -------- eliminar evento (con confirmación, RF-12) --------
 
 function openDeleteEventModal(event) {

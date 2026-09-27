@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.7.3
+
+- **Calendario → "Nuevo evento" desde el detalle del día**: al hacer click en un día que ya tiene eventos se abre el detalle, y ahora esa pantalla también tiene el botón "Nuevo evento".
+- **Formulario prellenado con ese día**: el botón cierra el detalle y abre el formulario con la fecha inicial y la fecha final ya puestas en ese día. Antes, para agregar un segundo evento al mismo día había que volver a la barra superior y corregir la fecha a mano.
+- **PWA**: caché actualizada a v8 para forzar la descarga limpia de los assets.
+
 ## v1.7.2
 
 - **Versus — tablero VS en columnas**: el tablero ahora es un enfrentamiento de dos columnas verticales de igual ancho, cada una con el nombre del usuario al tope. La línea vertical central es contínua de arriba a abajo: pasa entre los nombres, bajo la separación horizontal y entre las tarjetas. Se reemplazó el "VS" de texto central por la línea contínua.
